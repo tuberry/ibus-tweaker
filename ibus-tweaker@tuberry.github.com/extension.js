@@ -18,8 +18,8 @@ const gsettings = ExtensionUtils.getSettings();
 const Me = ExtensionUtils.getCurrentExtension();
 const Fields = Me.imports.prefs.Fields;
 
+const STYLE = { 'AUTO': 0, 'LIGHT': 1, 'DARK': 2 };
 const UNKNOWN = { 'ON': 0, 'OFF': 1, 'DEFAULT': 2 };
-const STYLE = {   'AUTO': 0, 'LIGHT': 1, 'DARK': 2 };
 const ASCIIMODES = ['en', 'A', '英'];
 const INPUTMODE = 'InputMode';
 
@@ -121,8 +121,9 @@ const IBusFontSetting = GObject.registerClass({
     set fontname(fontname) {
         let offset = 3; // the fonts-size difference between index and candidate
         let desc = Pango.FontDescription.from_string(fontname);
+        let get_weight = () => { try { return desc.get_weight(); } catch(e) { return parseInt(e.message); } }; // hack for Pango.Weight enumeration exception (eg: 290) in some fonts
         CandidatePopup.set_style('font-weight: %d; font-family: "%s"; font-size: %dpt; font-style: %s;'.format(
-            desc.get_weight(),
+            get_weight(),
             desc.get_family(),
             (desc.get_size() / Pango.SCALE) - offset,
             Object.keys(Pango.Style)[desc.get_style()].toLowerCase()
@@ -202,18 +203,18 @@ const IBusThemeManager = GObject.registerClass({
     set night(night) {
         let style = this.style;
         this._night = night;
-        if(style == this.style || this._style == undefined) return;
+        if(style == this.style || this._style === undefined) return;
         this.style = this._style;
     }
 
     set color(color) {
         this._color = this._palatte[color];
-        if(this._style === undefined || this._style == STYLE.LIGHT) {
-            if(this._prvColor) CandidatePopup.remove_style_class_name(this._prvColor);
-            CandidatePopup.add_style_class_name(this._color);
-        } else {
+        if(this.style) {
             if(this._prvColor) CandidatePopup.remove_style_class_name('night-%s'.format(this._prvColor));
             CandidatePopup.add_style_class_name('night-%s'.format(this._color));
+        } else {
+            if(this._prvColor) CandidatePopup.remove_style_class_name(this._prvColor);
+            CandidatePopup.add_style_class_name(this._color);
         }
         this._prvColor = this._color;
     }
@@ -224,7 +225,6 @@ const IBusThemeManager = GObject.registerClass({
 
     set style(style) {
         this._style = style;
-        log(this._night);
         if(this._color === undefined) {
             if(this.style) {
                 CandidatePopup.add_style_class_name('night');
@@ -289,7 +289,7 @@ const IBusThemeManager = GObject.registerClass({
     }
 
     _restoreStyle() {
-        if(this._style == STYLE.DARK) {
+        if(this.style) {
             CandidatePopup.remove_style_class_name('night');
             CandidatePopup.remove_style_class_name('night-%s'.format(this._color));
         } else {
