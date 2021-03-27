@@ -6,7 +6,7 @@
 
 
 .ibus-tweaker-candidate-popup-content {
-    border-radius: 3px;
+    border-radius: 0.2em;
     border-width: 1px;
     padding: 0;
 }
@@ -20,7 +20,7 @@
 .ibus-tweaker-candidate-box {
     transition-duration: 100ms;
     border-radius: 0;
-    padding: 8px;
+    padding: 0.5em;
 }
 
 /* hide page buttons */
@@ -38,8 +38,8 @@
 
 .ibus-tweaker-candidate-popup-boxpointer {
     -arrow-background-color: transparent;
-    -arrow-border-radius: 12px;
-    -arrow-rise: 5px;
+    -arrow-border-radius: 0.75em;
+    -arrow-rise: 0.3em;
 }
 
 /*
@@ -95,19 +95,19 @@
 }
 
 /*
- *  #DE3163
+ *  #D13163
  */
 .night-red .ibus-tweaker-candidate-popup-content,
 .night-red .ibus-tweaker-candidate-popup-text {
-    border-color: rgba(222, 49, 99, 0.95);
+    border-color: rgba(209, 49, 99, 0.95);
 }
 
 .night-red .ibus-tweaker-candidate-box:hover {
-    background-color: rgba(222, 49, 99, 0.6);
+    background-color: rgba(209, 49, 99, 0.6);
 }
 
 .night-red .ibus-tweaker-candidate-box:selected {
-    background-color: rgba(222, 49, 99, 0.95);
+    background-color: rgba(209, 49, 99, 0.95);
 }
 
 

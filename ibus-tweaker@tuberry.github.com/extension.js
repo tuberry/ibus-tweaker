@@ -17,17 +17,27 @@ const ExtensionUtils = imports.misc.extensionUtils;
 const gsettings = ExtensionUtils.getSettings();
 const Me = ExtensionUtils.getCurrentExtension();
 const Fields = Me.imports.prefs.Fields;
+
 const UNKNOWN = { 'ON': 0, 'OFF': 1, 'DEFAULT': 2 };
-const STYLE = { 'LIGHT': 0, 'DARK': 1 };
+const STYLE = {   'AUTO': 0, 'LIGHT': 1, 'DARK': 2 };
 const ASCIIMODES = ['en', 'A', '英'];
 const INPUTMODE = 'InputMode';
 
-const LightProxy = Main.panel.statusArea.aggregateMenu._nightLight._proxy;
+const System = {
+    LIGHT:       'night-light-enabled',
+    PROPERTY:    'g-properties-changed',
+    BUS_NAME:    'org.gnome.SettingsDaemon.Color',
+    OBJECT_PATH: '/org/gnome/SettingsDaemon/Color',
+};
+const { loadInterfaceXML } = imports.misc.fileUtils;
+const ColorInterface = loadInterfaceXML(System.BUS_NAME);
+const ColorProxy = Gio.DBusProxy.makeProxyWrapper(ColorInterface);
+const ngsettings = new Gio.Settings({ schema: 'org.gnome.settings-daemon.plugins.color' });
 
 const IBusAutoSwitch = GObject.registerClass({
     Properties: {
-        'unknown':  GObject.param_spec_uint('unknown', 'unknown', 'unknown', 0, 2, 2, GObject.ParamFlags.READWRITE),
-        'shortcut': GObject.param_spec_boolean('shortcut', 'shortcut', 'shortcut', false, GObject.ParamFlags.WRITABLE),
+        'unknown':  GObject.ParamSpec.uint('unknown', 'unknown', 'unknown', GObject.ParamFlags.READWRITE, 0, 2, 2),
+        'shortcut': GObject.ParamSpec.boolean('shortcut', 'shortcut', 'shortcut', GObject.ParamFlags.WRITABLE, false),
     },
 }, class IBusAutoSwitch extends GObject.Object {
     _init() {
@@ -100,7 +110,7 @@ const IBusAutoSwitch = GObject.registerClass({
 
 const IBusFontSetting = GObject.registerClass({
     Properties: {
-        'fontname': GObject.param_spec_string('fontname', 'fontname', 'font name', 'Sans 16', GObject.ParamFlags.WRITABLE),
+        'fontname': GObject.ParamSpec.string('fontname', 'fontname', 'font name', GObject.ParamFlags.WRITABLE, 'Sans 16'),
     },
 }, class IBusFontSetting extends GObject.Object {
     _init() {
@@ -111,9 +121,8 @@ const IBusFontSetting = GObject.registerClass({
     set fontname(fontname) {
         let offset = 3; // the fonts-size difference between index and candidate
         let desc = Pango.FontDescription.from_string(fontname);
-        let get_weight = () => { try { return desc.get_weight(); } catch(e) { return parseInt(e.message); } }; // hack for Pango.Weight enumeration exception (eg: 290) in some fonts
         CandidatePopup.set_style('font-weight: %d; font-family: "%s"; font-size: %dpt; font-style: %s;'.format(
-            get_weight(),
+            desc.get_weight(),
             desc.get_family(),
             (desc.get_size() / Pango.SCALE) - offset,
             Object.keys(Pango.Style)[desc.get_style()].toLowerCase()
@@ -121,7 +130,7 @@ const IBusFontSetting = GObject.registerClass({
         CandidateArea._candidateBoxes.forEach(x => {
             x._candidateLabel.set_style('font-size: %dpt;'.format(desc.get_size() / Pango.SCALE));
             x._indexLabel.set_style('padding: %dpx 4px 0 0;'.format(offset * 2));
-        })
+        });
     }
 
     destroy() {
@@ -135,7 +144,7 @@ const IBusFontSetting = GObject.registerClass({
 
 const IBusOrientation = GObject.registerClass({
     Properties: {
-        'orientation': GObject.param_spec_uint('orientation', 'orientation', 'orientation', 0, 1, 1, GObject.ParamFlags.WRITABLE),
+        'orientation': GObject.ParamSpec.uint('orientation', 'orientation', 'orientation', GObject.ParamFlags.WRITABLE, 0, 1, 1),
     },
 }, class IBusOrientation extends GObject.Object {
     _init() {
@@ -156,16 +165,83 @@ const IBusOrientation = GObject.registerClass({
 
 const IBusThemeManager = GObject.registerClass({
     Properties: {
-        'night': GObject.param_spec_boolean('night', 'night', 'night', false, GObject.ParamFlags.WRITABLE),
-        'style': GObject.param_spec_uint('style', 'style', 'style', 0, 1, 0, GObject.ParamFlags.WRITABLE),
-        'color': GObject.param_spec_uint('color', 'color', 'color', 0, 7, 3, GObject.ParamFlags.WRITABLE),
+        'night': GObject.ParamSpec.boolean('night', 'night', 'night', GObject.ParamFlags.READWRITE, false),
+        'style': GObject.ParamSpec.uint('style', 'style', 'style', GObject.ParamFlags.WRITABLE, 0, 2, 0),
+        'color': GObject.ParamSpec.uint('color', 'color', 'color', GObject.ParamFlags.WRITABLE, 0, 7, 3),
     },
 }, class IBusThemeManager extends GObject.Object {
     _init() {
         super._init();
         this._replaceStyle();
         this._bindSettings();
-        this._proxyChangedId = LightProxy.connect('g-properties-changed', this._onProxyChanged.bind(this));
+        this._buildWidgets();
+    }
+
+    _bindSettings() { // order matters
+        ngsettings.bind(System.LIGHT,       this, 'night', Gio.SettingsBindFlags.GET);
+        gsettings.bind(Fields.MSTHEMESTYLE, this, 'style', Gio.SettingsBindFlags.GET);
+        gsettings.bind(Fields.MSTHEMECOLOR, this, 'color', Gio.SettingsBindFlags.GET);
+    }
+
+    _buildWidgets() {
+        this._proxy = new ColorProxy(Gio.DBus.session, System.BUS_NAME, System.OBJECT_PATH, (proxy, error) => {
+            if(!error) {
+                this._onProxyChanged();
+                this._proxy.connect(System.PROPERTY, this._onProxyChanged.bind(this));
+            }
+        });
+    }
+
+    _onProxyChanged() {
+        let style = this.style;
+        this._light = this._proxy.NightLightActive;
+        if(style == this.style || this._style == undefined) return;
+        this.style = this._style;
+    }
+
+    set night(night) {
+        let style = this.style;
+        this._night = night;
+        if(style == this.style || this._style == undefined) return;
+        this.style = this._style;
+    }
+
+    set color(color) {
+        this._color = this._palatte[color];
+        if(this._style === undefined || this._style == STYLE.LIGHT) {
+            if(this._prvColor) CandidatePopup.remove_style_class_name(this._prvColor);
+            CandidatePopup.add_style_class_name(this._color);
+        } else {
+            if(this._prvColor) CandidatePopup.remove_style_class_name('night-%s'.format(this._prvColor));
+            CandidatePopup.add_style_class_name('night-%s'.format(this._color));
+        }
+        this._prvColor = this._color;
+    }
+
+    get style() {
+        return this._style == STYLE.AUTO ? this._night && this._light : this._style == STYLE.DARK;
+    }
+
+    set style(style) {
+        this._style = style;
+        log(this._night);
+        if(this._color === undefined) {
+            if(this.style) {
+                CandidatePopup.add_style_class_name('night');
+            } else {
+                CandidatePopup.remove_style_class_name('night');
+            }
+        } else {
+            if(this.style) {
+                CandidatePopup.remove_style_class_name(this._color);
+                CandidatePopup.add_style_class_name('night');
+                CandidatePopup.add_style_class_name('night-%s'.format(this._color));
+            } else {
+                CandidatePopup.remove_style_class_name('night');
+                CandidatePopup.remove_style_class_name('night-%s'.format(this._color));
+                CandidatePopup.add_style_class_name(this._color);
+            }
+        }
     }
 
     _replaceStyle() {
@@ -195,9 +271,6 @@ const IBusThemeManager = GObject.registerClass({
         }
         this._palatte = ['red', 'green', 'orange', 'blue', 'purple', 'turquoise', 'grey'];
         this._addStyleClass(this._popup, CandidatePopup,  x => x.replace(/candidate/g, 'ibus-tweaker-candidate'));
-        this._night = null;
-        this._style = null;
-        this._color = null;
     }
 
     _addStyleClass(src, aim, func) {
@@ -227,79 +300,16 @@ const IBusThemeManager = GObject.registerClass({
         delete this._palatte;
     }
 
-    _onProxyChanged() {
-        if(this._night === null || !this._night) return;
-        gsettings.set_uint(Fields.MSTHEMESTYLE, this._night && LightProxy.NightLightActive ? STYLE.DARK : STYLE.LIGHT);
-    }
-
-    set night(night) {
-        this._night = night;
-        gsettings.set_uint(Fields.MSTHEMESTYLE, night && LightProxy.NightLightActive ? STYLE.DARK : STYLE.LIGHT);
-    }
-
-    set color(color) {
-        this._color = this._palatte[color];
-        if(this._style === null || this._style == STYLE.LIGHT) {
-            if(this._prvColor)
-                CandidatePopup.remove_style_class_name(this._prvColor);
-            CandidatePopup.add_style_class_name(this._color);
-        } else {
-            if(this._prvColor)
-                CandidatePopup.remove_style_class_name('night-%s'.format(this._prvColor));
-            CandidatePopup.add_style_class_name('night-%s'.format(this._color));
-        }
-        this._prvColor = this._color;
-    }
-
-    set style(style) {
-        this._style = style;
-        if(this._color === null) {
-            if(style == STYLE.DARK) {
-                CandidatePopup.add_style_class_name('night');
-            } else {
-                CandidatePopup.remove_style_class_name('night');
-            }
-        } else {
-            if(style == STYLE.DARK) {
-                CandidatePopup.remove_style_class_name(this._color);
-                CandidatePopup.add_style_class_name('night');
-                CandidatePopup.add_style_class_name('night-%s'.format(this._color));
-            } else {
-                CandidatePopup.remove_style_class_name('night');
-                CandidatePopup.remove_style_class_name('night-%s'.format(this._color));
-                CandidatePopup.add_style_class_name(this._color);
-            }
-        }
-    }
-
-    _bindSettings() { // order matters
-        gsettings.bind(Fields.MSTHEMENIGHT, this, 'night', Gio.SettingsBindFlags.GET);
-        gsettings.bind(Fields.MSTHEMESTYLE, this, 'style', Gio.SettingsBindFlags.GET);
-        gsettings.bind(Fields.MSTHEMECOLOR, this, 'color', Gio.SettingsBindFlags.GET);
-    }
-
     destroy() {
         this._restoreStyle();
-        if(this._proxyChangedId) LightProxy.disconnect(this._proxyChangedId), this._proxyChangedId = 0;
-    }
-});
-
-const ActivitiesHide = GObject.registerClass(
-class ActivitiesHide extends GObject.Object{
-    _init() {
-        super._init();
-        Main.panel.statusArea['activities'].hide();
-    }
-
-    destroy() {
-        Main.panel.statusArea['activities'].show();
+        delete this._proxy;
     }
 });
 
 const UpdatesIndicator = GObject.registerClass({
     Properties: {
-        'updatescmd': GObject.param_spec_string('updatescmd', 'updatescmd', 'updates cmd', 'checkupdates | wc -l', GObject.ParamFlags.READWRITE),
-        'updatesdir': GObject.param_spec_string('updatesdir', 'updatesdir', 'updates dir', '/var/lib/pacman/local', GObject.ParamFlags.READWRITE),
+        'updatescmd': GObject.ParamSpec.string('updatescmd', 'updatescmd', 'updates cmd', GObject.ParamFlags.READWRITE, 'checkupdates | wc -l'),
+        'updatesdir': GObject.ParamSpec.string('updatesdir', 'updatesdir', 'updates dir', GObject.ParamFlags.READWRITE, '/var/lib/pacman/local'),
     },
 }, class UpdatesIndicator extends GObject.Object{
     _init() {
@@ -340,6 +350,8 @@ const UpdatesIndicator = GObject.registerClass({
         }).catch(err => {
             Main.notifyError(Me.metadata.name, err);
         });
+
+        return GLib.SOURCE_CONTINUE;
     }
 
     _showUpdates(count) {
@@ -347,7 +359,7 @@ const UpdatesIndicator = GObject.registerClass({
         if(count == '0') {
             this._button.hide();
         } else {
-            let dir = Gio.file_new_for_path(this.updatesdir);
+            let dir = Gio.File.new_for_path(this.updatesdir);
             this._fileMonitor = dir.monitor_directory(Gio.FileMonitorFlags.NONE, null);
             this._fileChangedId = this._fileMonitor.connect('changed', () => {
                 GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, 10, () => {
@@ -400,12 +412,11 @@ const UpdatesIndicator = GObject.registerClass({
 
 const Extensions = GObject.registerClass({
     Properties: {
-        'font':   GObject.param_spec_boolean('font', 'font', 'font', false, GObject.ParamFlags.WRITABLE),
-        'input':  GObject.param_spec_boolean('input', 'input', 'input', false, GObject.ParamFlags.WRITABLE),
-        'orien':  GObject.param_spec_boolean('orien', 'orien', 'orien', false, GObject.ParamFlags.WRITABLE),
-        'theme':  GObject.param_spec_boolean('theme', 'theme', 'theme', false, GObject.ParamFlags.WRITABLE),
-        'activ':  GObject.param_spec_boolean('activ', 'activ', 'activ', false, GObject.ParamFlags.WRITABLE),
-        'update': GObject.param_spec_boolean('update', 'update', 'update', false, GObject.ParamFlags.WRITABLE),
+        'font':   GObject.ParamSpec.boolean('font', 'font', 'font', GObject.ParamFlags.WRITABLE, false),
+        'input':  GObject.ParamSpec.boolean('input', 'input', 'input', GObject.ParamFlags.WRITABLE, false),
+        'orien':  GObject.ParamSpec.boolean('orien', 'orien', 'orien', GObject.ParamFlags.WRITABLE, false),
+        'theme':  GObject.ParamSpec.boolean('theme', 'theme', 'theme', GObject.ParamFlags.WRITABLE, false),
+        'update': GObject.ParamSpec.boolean('update', 'update', 'update', GObject.ParamFlags.WRITABLE, false),
     },
 }, class Extensions extends GObject.Object{
     _init() {
@@ -418,7 +429,6 @@ const Extensions = GObject.registerClass({
         gsettings.bind(Fields.USECUSTOMFONT, this, 'font',   Gio.SettingsBindFlags.GET);
         gsettings.bind(Fields.ENABLEORIEN,   this, 'orien',  Gio.SettingsBindFlags.GET);
         gsettings.bind(Fields.ENABLEMSTHEME, this, 'theme',  Gio.SettingsBindFlags.GET);
-        gsettings.bind(Fields.ACTIVITIES,    this, 'activ',  Gio.SettingsBindFlags.GET);
         gsettings.bind(Fields.ENABLEUPDATES, this, 'update', Gio.SettingsBindFlags.GET);
     }
 
@@ -466,17 +476,6 @@ const Extensions = GObject.registerClass({
         }
     }
 
-    set activ(activ) {
-        if(activ) {
-            if(this._activ) return;
-            this._activ = new ActivitiesHide();
-        } else {
-            if(!this._activ) return;
-            this._activ.destroy();
-            delete this._activ;
-        }
-    }
-
     set update(update) {
         if(update) {
             if(this._update) return;
@@ -493,7 +492,6 @@ const Extensions = GObject.registerClass({
         this.input = false;
         this.orien = false;
         this.theme = false;
-        this.activ = false;
         this.update = false;
     }
 });
