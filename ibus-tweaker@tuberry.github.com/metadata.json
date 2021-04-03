@@ -4,7 +4,7 @@
   "name": "IBus Tweaker",
   "settings-schema": "org.gnome.shell.extensions.ibus-tweaker",
   "shell-version": [
-    "3.38"
+    "40"
   ],
   "url": "https://github.com/tuberry/ibus-tweaker",
   "uuid": "ibus-tweaker@tuberry.github.com",

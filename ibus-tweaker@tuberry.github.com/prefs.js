@@ -1,34 +1,15 @@
 // vim:fdm=syntax
-// by:tuberry@github
-//
+// by: tuberry@github
+'use strict';
+
 const { Gio, Gtk, GObject } = imports.gi;
 
 const ExtensionUtils = imports.misc.extensionUtils;
 const Me = ExtensionUtils.getCurrentExtension();
 const _ = imports.gettext.domain(Me.metadata['gettext-domain']).gettext;
 const gsettings = ExtensionUtils.getSettings();
+const Fields = Me.imports.fields.Fields;
 const UI = Me.imports.ui;
-
-var Fields = {
-    ASCIIMODE:     'ascii-mode',
-    SHORTCUT:      'run-dialog',
-    CUSTOMFONT:    'custom-font',
-    UPDATESDIR:    'updates-dir',
-    CHECKUPDATES:  'check-updates',
-    ENABLEHOTKEY:  'enable-hotkey',
-    INPUTONLIST:   'input-on-list',
-    ENABLEUPDATES: 'enable-updates',
-    INPUTOFFLIST:  'input-off-list',
-    MSTHEMECOLOR:  'ms-theme-color',
-    ENABLEMSTHEME: 'enable-ms-theme',
-    INPUTLIST:     'input-mode-list',
-    MSTHEMESTYLE:  'default-variant',
-    USECUSTOMFONT: 'use-custom-font',
-    AUTOSWITCH:    'enable-auto-switch',
-    ENABLEORIEN:   'enable-orientation',
-    UNKNOWNSTATE:  'unkown-ascii-state',
-    ORIENTATION:   'candidate-orientation',
-};
 
 function buildPrefsWidget() {
     return new IBusTweakerPrefs();
@@ -41,39 +22,37 @@ function init() {
 const IBusTweakerPrefs = GObject.registerClass(
 class IBusTweakerPrefs extends Gtk.ScrolledWindow {
     _init() {
-        super._init({
-            hscrollbar_policy: Gtk.PolicyType.NEVER,
-        });
-
+        super._init({ hscrollbar_policy: Gtk.PolicyType.NEVER, });
         this._palatte = [_('Red'), _('Green'), _('Orange'), _('Blue'), _('Purple'), _('Turquoise'), _('Grey')];
 
-        this._bulidUI();
+        this._buildWidgets();
         this._bindValues();
-        this.show_all();
+        this._buildUI();
     }
 
-    _bulidUI() {
+    _buildWidgets() {
         this._field_custom_font     = new Gtk.FontButton();
         this._field_theme_color     = new UI.Combo(this._palatte);
         this._field_enable_hotkey   = new UI.Check(_('Run dialog'));
         this._field_enable_ms_theme = new UI.Check(_('MS IME theme'));
         this._field_activities      = new UI.Check(_('Hide Activities'));
         this._field_use_custom_font = new UI.Check(_('Use custom font'));
-        this._field_run_dialog      = this._shortcutMaker(Fields.SHORTCUT);
         this._field_enable_ascii    = new UI.Check(_('Auto switch ASCII mode'));
         this._field_enable_orien    = new UI.Check(_('Candidates orientation'));
         this._field_orientation     = new UI.Combo([_('Vertical'), _('Horizontal')]);
         this._field_unkown_state    = new UI.Combo([_('On'), _('Off'), _('Default')]);
         this._field_variant         = new UI.Combo([_('Auto'), _('Light'), _('Dark')]);
+        this._field_run_dialog      = new UI.Shortcut(gsettings.get_strv(Fields.SHORTCUT));
+    }
 
-        let ibus = new UI.ListGrid();
-        ibus._add(this._field_enable_hotkey,   this._field_run_dialog);
-        ibus._add(this._field_enable_orien,    this._field_orientation);
-        ibus._add(this._field_use_custom_font, this._field_custom_font);
-        ibus._add(this._field_enable_ascii,    this._field_unkown_state);
-        ibus._add(this._field_enable_ms_theme, this._field_variant, this._field_theme_color);
-
-        this.add(new UI.Frame(ibus));
+    _buildUI() {
+        let grid = new UI.ListGrid();
+        grid._add(this._field_enable_hotkey,   this._field_run_dialog);
+        grid._add(this._field_enable_orien,    this._field_orientation);
+        grid._add(this._field_use_custom_font, this._field_custom_font);
+        grid._add(this._field_enable_ascii,    this._field_unkown_state);
+        grid._add(this._field_enable_ms_theme, this._field_variant, this._field_theme_color);
+        this.set_child(new UI.Frame(grid));
     }
 
     _bindValues() {
@@ -87,43 +66,7 @@ class IBusTweakerPrefs extends Gtk.ScrolledWindow {
         gsettings.bind(Fields.UNKNOWNSTATE,  this._field_unkown_state,    'active', Gio.SettingsBindFlags.DEFAULT);
         gsettings.bind(Fields.USECUSTOMFONT, this._field_use_custom_font, 'active', Gio.SettingsBindFlags.DEFAULT);
         gsettings.bind(Fields.CUSTOMFONT,    this._field_custom_font,     'font',   Gio.SettingsBindFlags.DEFAULT);
-
-        this._field_enable_hotkey.bind_property('active',   this._field_run_dialog,   'sensitive', GObject.BindingFlags.GET);
-        this._field_enable_ascii.bind_property('active',    this._field_unkown_state, 'sensitive', GObject.BindingFlags.GET);
-        this._field_enable_orien.bind_property('active',    this._field_orientation,  'sensitive', GObject.BindingFlags.GET);
-        this._field_use_custom_font.bind_property('active', this._field_custom_font,  'sensitive', GObject.BindingFlags.GET);
-        this._field_enable_ms_theme.bind_property('active', this._field_variant,      'sensitive', GObject.BindingFlags.GET);
-        this._field_enable_ms_theme.bind_property('active', this._field_theme_color,  'sensitive', GObject.BindingFlags.GET);
-
-        this._field_run_dialog.set_sensitive(this._field_enable_hotkey.active);
-        this._field_unkown_state.set_sensitive(this._field_enable_ascii.active);
-        this._field_orientation.set_sensitive(this._field_enable_orien.active);
-        this._field_custom_font.set_sensitive(this._field_use_custom_font.active);
-        this._field_theme_color.set_sensitive(this._field_enable_ms_theme.active);
-        this._field_variant.set_sensitive(this._field_enable_ms_theme.active);
-    }
-
-    _shortcutMaker(shortcut) {
-        let model = new Gtk.ListStore();
-        model.set_column_types([GObject.TYPE_INT, GObject.TYPE_INT]);
-        let [key, mods] = Gtk.accelerator_parse(gsettings.get_strv(shortcut)[0]);
-        model.set(model.insert(0), [0, 1], [mods, key]);
-        let tree = new Gtk.TreeView({ model: model, headers_visible: false });
-        let acc = new Gtk.CellRendererAccel({ 'editable': true, 'accel-mode': Gtk.CellRendererAccelMode.GTK });
-        let column = new Gtk.TreeViewColumn();
-        column.pack_start(acc, false);
-        column.add_attribute(acc, 'accel-mods', 0);
-        column.add_attribute(acc, 'accel-key', 1);
-        tree.append_column(column);
-
-        acc.connect('accel-edited', (row, iter, key, mods) => {
-            let value = Gtk.accelerator_name(key, mods);
-            let [ok, iterator] = model.get_iter_from_string(iter);
-            model.set(iterator, [0, 1], [mods, key]);
-            if(key) gsettings.set_strv(shortcut, [value]);
-        });
-
-        return tree;
+        this._field_run_dialog.connect('changed', (widget, keys) => { gsettings.set_strv(Fields.SHORTCUT, [keys]); });
     }
 });
 

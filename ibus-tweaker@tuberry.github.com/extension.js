@@ -16,10 +16,10 @@ const CandidateArea = CandidatePopup._candidateArea;
 const ExtensionUtils = imports.misc.extensionUtils;
 const gsettings = ExtensionUtils.getSettings();
 const Me = ExtensionUtils.getCurrentExtension();
-const Fields = Me.imports.prefs.Fields;
+const Fields = Me.imports.fields.Fields;
 
-const STYLE = { 'AUTO': 0, 'LIGHT': 1, 'DARK': 2 };
 const UNKNOWN = { 'ON': 0, 'OFF': 1, 'DEFAULT': 2 };
+const STYLE = { 'AUTO': 0, 'LIGHT': 1, 'DARK': 2 };
 const ASCIIMODES = ['en', 'A', '英'];
 const INPUTMODE = 'InputMode';
 
@@ -130,7 +130,7 @@ const IBusFontSetting = GObject.registerClass({
         ));
         CandidateArea._candidateBoxes.forEach(x => {
             x._candidateLabel.set_style('font-size: %dpt;'.format(desc.get_size() / Pango.SCALE));
-            x._indexLabel.set_style('padding: %dpx 4px 0 0;'.format(offset * 2));
+            x._indexLabel.set_style('padding: %fem 0.25em 0 0;'.format(offset * 2 / 16));
         });
     }
 
