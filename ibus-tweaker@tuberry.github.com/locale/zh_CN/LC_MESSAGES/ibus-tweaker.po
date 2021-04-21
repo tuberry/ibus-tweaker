@@ -1,14 +1,15 @@
-# Chinese translations for PACKAGE package.
-# Copyright (C) 2020 THE PACKAGE'S COPYRIGHT HOLDER
-# This file is distributed under the same license as the PACKAGE package.
+# Chinese translations for Ibus Tweaker package
+# Ibus Tweaker 软件包的简体中文翻译.
+# Copyright (C) 2021 THE Ibus Tweaker'S COPYRIGHT HOLDER
+# This file is distributed under the same license as the Ibus Tweaker package.
 # tuberry <orzun@foxmail.com>, 2020-2021.
 #
 msgid ""
 msgstr ""
-"Project-Id-Version: 1\n"
+"Project-Id-Version: Ibus Tweaker 32\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2021-03-27 14:27+0800\n"
-"PO-Revision-Date: 2021-03-27 14:28+0800\n"
+"POT-Creation-Date: 2021-04-21 15:20+0800\n"
+"PO-Revision-Date: 2021-04-21 15:22+0800\n"
 "Last-Translator: tuberry <orzun@foxmail.com>\n"
 "Language-Team: Chinese (Simplified) <orzun@foxmail.com>\n"
 "Language: zh_CHS\n"
@@ -16,106 +17,84 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=1; plural=0\n"
-"X-Generator: Gtranslator 3.38.0\n"
+"X-Generator: Gtranslator 40.0\n"
 
-#: prefs.js:48
+#: prefs.js:26
 msgid "Red"
 msgstr "玫瑰红"
 
-#: prefs.js:48
+#: prefs.js:26
 msgid "Green"
 msgstr "薄荷绿"
 
-#: prefs.js:48
+#: prefs.js:26
 msgid "Orange"
 msgstr "热带橙"
 
-#: prefs.js:48
+#: prefs.js:26
 msgid "Blue"
 msgstr "科技蓝"
 
-#: prefs.js:48
+#: prefs.js:26
 msgid "Purple"
 msgstr "木槿紫"
 
-#: prefs.js:48
+#: prefs.js:26
 msgid "Turquoise"
 msgstr "水鸭青"
 
-#: prefs.js:48
+#: prefs.js:26
 msgid "Grey"
 msgstr "混沌灰"
 
-#: prefs.js:58
+#: prefs.js:36
 msgid "Run dialog"
 msgstr "运行命令框"
 
-#: prefs.js:59
+#: prefs.js:37
 msgid "MS IME theme"
 msgstr "仿微软主题"
 
-#: prefs.js:60
-msgid "Hide Activities"
-msgstr "隐藏活动按钮"
-
-#: prefs.js:61
+#: prefs.js:38
 msgid "Use custom font"
 msgstr "自定义字体"
 
-#: prefs.js:63
+#: prefs.js:39
 msgid "Auto switch ASCII mode"
 msgstr "中英文切换"
 
-#: prefs.js:64
+#: prefs.js:40
 msgid "Candidates orientation"
 msgstr "候选框方向"
 
-#: prefs.js:65
+#: prefs.js:41
 msgid "Vertical"
 msgstr "竖直"
 
-#: prefs.js:65
+#: prefs.js:41
 msgid "Horizontal"
 msgstr "水平"
 
-#: prefs.js:66
+#: prefs.js:42
 msgid "On"
 msgstr "英文"
 
-#: prefs.js:66
+#: prefs.js:42
 msgid "Off"
 msgstr "中文"
 
-#: prefs.js:66
+#: prefs.js:42
 msgid "Default"
 msgstr "默认"
 
-#: prefs.js:67
+#: prefs.js:43
 msgid "Auto"
 msgstr "自动"
 
-#: prefs.js:67
+#: prefs.js:43
 msgid "Light"
 msgstr "浅色"
 
-#: prefs.js:67
+#: prefs.js:43
 msgid "Dark"
 msgstr "深色"
-
-#~ msgid "ascii mode off when initializing"
-#~ msgstr "首次启动切中文"
-
-#~ msgid "ascii mode on when initializing"
-#~ msgstr "首次启动切英文"
-
-#~ msgid "IBus"
-#~ msgstr "输入法"
-
-#~ msgid "Night mode"
-#~ msgstr "夜间模式"
-
-#~ msgid "Others"
-#~ msgstr "杂项"
-
-#~ msgid "Hide minimized in AltTab"
-#~ msgstr "隐藏最小化窗口(AltTab)"

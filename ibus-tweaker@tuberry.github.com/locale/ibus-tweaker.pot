@@ -6,9 +6,9 @@
 #, fuzzy
 msgid ""
 msgstr ""
-"Project-Id-Version: Ibus Tweaker 29\n"
+"Project-Id-Version: Ibus Tweaker 32\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2021-03-27 14:27+0800\n"
+"POT-Creation-Date: 2021-04-21 15:20+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -17,86 +17,82 @@ msgstr ""
 "Content-Type: text/plain; charset=CHARSET\n"
 "Content-Transfer-Encoding: 8bit\n"
 
-#: prefs.js:48
+#: prefs.js:26
 msgid "Red"
 msgstr ""
 
-#: prefs.js:48
+#: prefs.js:26
 msgid "Green"
 msgstr ""
 
-#: prefs.js:48
+#: prefs.js:26
 msgid "Orange"
 msgstr ""
 
-#: prefs.js:48
+#: prefs.js:26
 msgid "Blue"
 msgstr ""
 
-#: prefs.js:48
+#: prefs.js:26
 msgid "Purple"
 msgstr ""
 
-#: prefs.js:48
+#: prefs.js:26
 msgid "Turquoise"
 msgstr ""
 
-#: prefs.js:48
+#: prefs.js:26
 msgid "Grey"
 msgstr ""
 
-#: prefs.js:58
+#: prefs.js:36
 msgid "Run dialog"
 msgstr ""
 
-#: prefs.js:59
+#: prefs.js:37
 msgid "MS IME theme"
 msgstr ""
 
-#: prefs.js:60
-msgid "Hide Activities"
-msgstr ""
-
-#: prefs.js:61
+#: prefs.js:38
 msgid "Use custom font"
 msgstr ""
 
-#: prefs.js:63
+#: prefs.js:39
 msgid "Auto switch ASCII mode"
 msgstr ""
 
-#: prefs.js:64
+#: prefs.js:40
 msgid "Candidates orientation"
 msgstr ""
 
-#: prefs.js:65
+#: prefs.js:41
 msgid "Vertical"
 msgstr ""
 
-#: prefs.js:65
+#: prefs.js:41
 msgid "Horizontal"
 msgstr ""
 
-#: prefs.js:66
+#: prefs.js:42
 msgid "On"
 msgstr ""
 
-#: prefs.js:66
+#: prefs.js:42
 msgid "Off"
 msgstr ""
 
-#: prefs.js:66
+#: prefs.js:42
 msgid "Default"
 msgstr ""
 
-#: prefs.js:67
+#: prefs.js:43
 msgid "Auto"
 msgstr ""
 
-#: prefs.js:67
+#: prefs.js:43
 msgid "Light"
 msgstr ""
 
-#: prefs.js:67
+#: prefs.js:43
 msgid "Dark"
 msgstr ""

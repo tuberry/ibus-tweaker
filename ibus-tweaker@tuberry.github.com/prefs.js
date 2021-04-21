@@ -35,7 +35,6 @@ class IBusTweakerPrefs extends Gtk.ScrolledWindow {
         this._field_theme_color     = new UI.Combo(this._palatte);
         this._field_enable_hotkey   = new UI.Check(_('Run dialog'));
         this._field_enable_ms_theme = new UI.Check(_('MS IME theme'));
-        this._field_activities      = new UI.Check(_('Hide Activities'));
         this._field_use_custom_font = new UI.Check(_('Use custom font'));
         this._field_enable_ascii    = new UI.Check(_('Auto switch ASCII mode'));
         this._field_enable_orien    = new UI.Check(_('Candidates orientation'));
