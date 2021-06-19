@@ -7,8 +7,7 @@ const Panel = imports.ui.panel;
 const PanelMenu = imports.ui.panelMenu;
 const { Shell, Clutter, Gio, GLib, Meta, IBus, Pango, St, GObject } = imports.gi;
 
-const Keyboard = imports.ui.status.keyboard;
-const InputSourceManager = Keyboard.getInputSourceManager();
+const InputSourceManager = imports.ui.status.keyboard.getInputSourceManager();
 const IBusManager = imports.misc.ibusManager.getIBusManager();
 const CandidatePopup = IBusManager._candidatePopup;
 const CandidateArea = CandidatePopup._candidateArea;
@@ -49,8 +48,7 @@ const IBusAutoSwitch = GObject.registerClass({
     }
 
     get _state() {
-        const labels = Main.panel.statusArea.keyboard._indicatorLabels;
-        return ASCIIMODES.includes(labels[InputSourceManager.currentSource.index].get_text());
+        return ASCIIMODES.includes(Main.panel.statusArea.keyboard._indicatorLabels[InputSourceManager.currentSource.index].get_text());
     }
 
     get _toggle() {
@@ -83,11 +81,8 @@ const IBusAutoSwitch = GObject.registerClass({
     }
 
     _onWindowChanged() {
-        if(this._toggle && IBusManager._panelService) {
+        if(this._toggle && IBusManager._panelService)
             IBusManager.activateProperty(INPUTMODE, IBus.PropState.CHECKED);
-        } else {
-            //
-        }
     }
 
     _bindSettings() {
@@ -119,18 +114,18 @@ const IBusFontSetting = GObject.registerClass({
     }
 
     set fontname(fontname) {
-        let offset = 3; // the fonts-size difference between index and candidate
+        let scale = 13 / 16; // the fonts-size difference between index and candidate
         let desc = Pango.FontDescription.from_string(fontname);
         let get_weight = () => { try { return desc.get_weight(); } catch(e) { return parseInt(e.message); } }; // hack for Pango.Weight enumeration exception (eg: 290) in some fonts
         CandidatePopup.set_style('font-weight: %d; font-family: "%s"; font-size: %dpt; font-style: %s;'.format(
             get_weight(),
             desc.get_family(),
-            (desc.get_size() / Pango.SCALE) - offset,
+            (desc.get_size() / Pango.SCALE) * scale,
             Object.keys(Pango.Style)[desc.get_style()].toLowerCase()
         ));
         CandidateArea._candidateBoxes.forEach(x => {
             x._candidateLabel.set_style('font-size: %dpt;'.format(desc.get_size() / Pango.SCALE));
-            x._indexLabel.set_style('padding: %fem 0.25em 0 0;'.format(offset * 2 / 16));
+            x._indexLabel.set_style('padding: %fem 0.25em 0 0;'.format((1 - scale) * 2));
         });
     }
 
@@ -196,7 +191,7 @@ const IBusThemeManager = GObject.registerClass({
     _onProxyChanged() {
         let style = this.style;
         this._light = this._proxy.NightLightActive;
-        if(style == this.style || this._style == undefined) return;
+        if(style == this.style || this._style === undefined) return;
         this.style = this._style;
     }
 
@@ -345,7 +340,7 @@ const UpdatesIndicator = GObject.registerClass({
     }
 
     _checkUpdates() {
-        this._execute(gsettings.get_string(Fields.CHECKUPDATES)).then(scc => {
+        this._execute(this.updatescmd).then(scc => {
             this._showUpdates(scc);
         }).catch(err => {
             Main.notifyError(Me.metadata.name, err);
@@ -356,6 +351,7 @@ const UpdatesIndicator = GObject.registerClass({
 
     _showUpdates(count) {
         this._checkUpdated();
+        if(!this._button) return;
         if(count == '0') {
             this._button.hide();
         } else {
@@ -385,7 +381,6 @@ const UpdatesIndicator = GObject.registerClass({
             icon_name: 'software-update-available-symbolic',
         });
         this._button.label = new St.Label({
-            text: '0',
             y_expand: false,
             y_align: Clutter.ActorAlign.CENTER
         });
