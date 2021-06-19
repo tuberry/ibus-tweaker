@@ -17,6 +17,7 @@ Or manually:
 ```bash
 git clone https://github.com/tuberry/ibus-tweaker.git
 cd ibus-tweaker && make install
+# make mergepo # for translation
 ```
 
 ## Features
