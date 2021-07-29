@@ -239,33 +239,14 @@ const IBusThemeManager = GObject.registerClass({
         }
     }
 
-    _replaceStyle() {
-        this._popup = {
-            style_class: 'candidate-popup-boxpointer',
-            _candidateArea: {
-                _candidateBoxes: Array(16).fill({
-                    style_class: 'candidate-box',
-                    _indexLabel: { style_class: 'candidate-index' },
-                    _candidateLabel: { style_class: 'candidate-label' }
-                }),
-                _buttonBox: { style_class: 'candidate-page-button-box' },
-                _previousButton: {
-                    style_class: 'candidate-page-button candidate-page-button-previous button',
-                    child: { style_class: 'candidate-page-button-icon' }
-                },
-                _nextButton: {
-                    style_class: 'candidate-page-button candidate-page-button-next button',
-                    child: { style_class: 'candidate-page-button-icon' }
-                }
-            },
-            bin: {
-                child: { style_class: 'candidate-popup-content' }
-            },
-            _preeditText: { style_class: 'candidate-popup-text' },
-            _auxText: { style_class: 'candidate-popup-text' }
+    set pgbutton(page) {
+        if(page) {
+            CandidateArea._previousButton.show();
+            CandidateArea._nextButton.show();
+        } else {
+            CandidateArea._previousButton.hide();
+            CandidateArea._nextButton.hide();
         }
-        this._palatte = ['red', 'green', 'orange', 'blue', 'purple', 'turquoise', 'grey'];
-        this._addStyleClass(this._popup, CandidatePopup,  x => x.replace(/candidate/g, 'ibus-tweaker-candidate'));
     }
 
     _addStyleClass(src, aim, func) {
@@ -283,6 +264,36 @@ const IBusThemeManager = GObject.registerClass({
         }
     }
 
+    _replaceStyle() {
+        this._popup = {
+            style_class: 'candidate-popup-boxpointer',
+            _candidateArea: {
+                _candidateBoxes: Array(16).fill({
+                    style_class: 'candidate-box',
+                    _indexLabel: { style_class: 'candidate-index' },
+                    _candidateLabel: { style_class: 'candidate-label' }
+                }),
+                _buttonBox: { style_class: 'candidate-page-button-box' },
+                // _previousButton: {
+                //     style_class: 'candidate-page-button candidate-page-button-previous button',
+                //     child: { style_class: 'candidate-page-button-icon' }
+                // },
+                // _nextButton: {
+                //     style_class: 'candidate-page-button candidate-page-button-next button',
+                //     child: { style_class: 'candidate-page-button-icon' }
+                // }
+            },
+            bin: {
+                child: { style_class: 'candidate-popup-content' }
+            },
+            _preeditText: { style_class: 'candidate-popup-text' },
+            _auxText: { style_class: 'candidate-popup-text' }
+        }
+        this._palatte = ['red', 'green', 'orange', 'blue', 'purple', 'turquoise', 'grey'];
+        this._addStyleClass(this._popup, CandidatePopup,  x => x.replace(/candidate/g, 'ibus-tweaker-candidate'));
+        this.pgbutton = false;
+    }
+
     _restoreStyle() {
         if(this.style) {
             CandidatePopup.remove_style_class_name('night');
@@ -293,6 +304,7 @@ const IBusThemeManager = GObject.registerClass({
         this._addStyleClass(this._popup, CandidatePopup, x => x);
         delete this._popup;
         delete this._palatte;
+        this.pgbutton = true;
     }
 
     destroy() {
