@@ -335,15 +335,18 @@ const UpdatesIndicator = GObject.registerClass({
     _execute(cmd) {
         return new Promise((resolve, reject) => {
             try {
-                let command = ['/bin/bash', '-c', this.updatescmd];
                 let proc = new Gio.Subprocess({
-                    argv: command,
+                    argv: GLib.shell_parse_argv(cmd)[1],
                     flags: Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_PIPE,
                 });
                 proc.init(null);
                 proc.communicate_utf8_async(null, null, (proc, res) => {
-                    let [, stdout, stderr] = proc.communicate_utf8_finish(res);
-                    proc.get_exit_status() ? reject(stderr.trim()) : resolve(stdout.trim());
+                    try {
+                        let [, stdout, stderr] = proc.communicate_utf8_finish(res);
+                        proc.get_exit_status() ? reject(stderr.trim()) : resolve(stdout.trim());
+                    } catch(e) {
+                        reject(e.message);
+                    }
                 });
             } catch(e) {
                 reject(e.message);
@@ -353,9 +356,9 @@ const UpdatesIndicator = GObject.registerClass({
 
     _checkUpdates() {
         this._execute(this.updatescmd).then(scc => {
-            this._showUpdates(scc);
+            this._showUpdates(scc ? scc.split(/\r\n|\r|\n/).length : 0);
         }).catch(err => {
-            Main.notifyError(Me.metadata.name, err);
+            this._showUpdates(0);
         });
 
         return GLib.SOURCE_CONTINUE;
@@ -364,9 +367,7 @@ const UpdatesIndicator = GObject.registerClass({
     _showUpdates(count) {
         this._checkUpdated();
         if(!this._button) return;
-        if(count == '0') {
-            this._button.hide();
-        } else {
+        if(count) {
             let dir = Gio.File.new_for_path(this.updatesdir);
             this._fileMonitor = dir.monitor_directory(Gio.FileMonitorFlags.NONE, null);
             this._fileChangedId = this._fileMonitor.connect('changed', () => {
@@ -375,8 +376,10 @@ const UpdatesIndicator = GObject.registerClass({
                     return GLib.SOURCE_REMOVE;
                 });
             });
-            this._button.label.set_text(count);
+            this._button.label.set_text(count.toString());
             this._button.show();
+        } else {
+            this._button.hide();
         }
     }
 

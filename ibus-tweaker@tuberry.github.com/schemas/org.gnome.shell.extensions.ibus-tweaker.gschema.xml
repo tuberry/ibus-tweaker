@@ -62,7 +62,7 @@
         <summary>enable updates indicator</summary>
     </key>
     <key type="s" name="check-updates">
-        <default>"checkupdates | wc -l"</default>
+        <default>"checkupdates"</default>
         <summary>command to check updates(for the Arch-based)</summary>
     </key>
     <key type="s" name="updates-dir">

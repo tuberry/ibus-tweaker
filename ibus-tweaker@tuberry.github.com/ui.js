@@ -98,7 +98,7 @@ var Shortcut = GObject.registerClass({
     },
 }, class Shortcut extends Gtk.Box {
     _init(shortcut, tooltip) {
-        super._init();
+        super._init({ tooltip_text: tooltip || '' });
         let model = new Gtk.ListStore();
         model.set_column_types([GObject.TYPE_STRING]);
         let [ok, key, mods] = Gtk.accelerator_parse(shortcut[0]);
@@ -118,7 +118,6 @@ var Shortcut = GObject.registerClass({
             this.emit('changed', name);
         });
         this.append(tree);
-        if(tooltip) this.set_tooltip_text(tooltip);
     }
 
     vfunc_snapshot(snapshot) {
@@ -237,12 +236,12 @@ var Combo = GObject.registerClass({
 var Frame = GObject.registerClass({
     GTypeName: 'Gjs_%s_UI_Frame'.format(Uuid),
 }, class Frame extends Gtk.Frame {
-    _init(widget, label) {
+    _init(widget, label, gap) {
         super._init({
             margin_end: 60,
             margin_top: 30,
             margin_start: 60,
-            margin_bottom: 30,
+            margin_bottom: gap ? 0 : 30,
         });
 
         this.set_child(widget);
@@ -299,7 +298,7 @@ var Check = GObject.registerClass({
             label: x,
             hexpand: true,
             halign: Gtk.Align.START,
-            tooltip_text: y ? y : '',
+            tooltip_text: y || '',
         });
     }
 });

@@ -26,7 +26,7 @@ cd ibus-tweaker && make install
 
 ## Acknowledgements
 
-1. [ibus-font-setting](https://extensions.gnome.org/extension/1121/ibus-font-setting/)
+* [ibus-font-setting](https://extensions.gnome.org/extension/1121/ibus-font-setting/)
 
 [EGO]:https://extensions.gnome.org/extension/2820/ibus-tweaker/
 [license]:https://img.shields.io/badge/license-GPLv3-green.svg
