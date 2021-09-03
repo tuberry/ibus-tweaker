@@ -1,5 +1,5 @@
 // vim:fdm=syntax
-// by tuberry@github
+// by tuberry
 'use strict';
 
 const Main = imports.ui.main;
@@ -408,12 +408,14 @@ const UpdatesIndicator = GObject.registerClass({
 
     _checkUpdated() {
         if(!this._fileMonitor) return;
-        if(this._fileChangedId) this._fileMonitor.disconnect(this._fileChangedId), this._fileChangedId = 0;
+        if(this._fileChangedId)
+            this._fileMonitor.disconnect(this._fileChangedId), this._fileChangedId = 0;
         delete this._fileMonitor;
     }
 
     destroy() {
-        if(this._checkUpdatesId) GLib.source_remove(this._checkUpdatesId), this._checkUpdatesId = 0;
+        if(this._checkUpdatesId)
+            GLib.source_remove(this._checkUpdatesId), this._checkUpdatesId = 0;
         this._checkUpdated();
         this._button.destroy();
         delete this._button;
