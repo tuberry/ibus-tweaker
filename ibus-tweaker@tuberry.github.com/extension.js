@@ -21,7 +21,6 @@ const UNKNOWN = { 'ON': 0, 'OFF': 1, 'DEFAULT': 2 };
 const STYLE = { 'AUTO': 0, 'LIGHT': 1, 'DARK': 2 };
 const ASCIIMODES = ['en', 'A', '英'];
 const INPUTMODE = 'InputMode';
-
 const System = {
     LIGHT:       'night-light-enabled',
     PROPERTY:    'g-properties-changed',
@@ -32,6 +31,8 @@ const { loadInterfaceXML } = imports.misc.fileUtils;
 const ColorInterface = loadInterfaceXML(System.BUS_NAME);
 const ColorProxy = Gio.DBusProxy.makeProxyWrapper(ColorInterface);
 const ngsettings = new Gio.Settings({ schema: 'org.gnome.settings-daemon.plugins.color' });
+
+Gio._promisify(Gio.Subprocess.prototype, 'communicate_utf8_async', 'communicate_utf8_finish');
 
 const IBusAutoSwitch = GObject.registerClass({
     Properties: {
@@ -332,26 +333,16 @@ const UpdatesIndicator = GObject.registerClass({
         gsettings.bind(Fields.CHECKUPDATES, this, 'updatescmd', Gio.SettingsBindFlags.GET);
     }
 
-    _execute(cmd) {
-        return new Promise((resolve, reject) => {
-            try {
-                let proc = new Gio.Subprocess({
-                    argv: GLib.shell_parse_argv(cmd)[1],
-                    flags: Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_PIPE,
-                });
-                proc.init(null);
-                proc.communicate_utf8_async(null, null, (proc, res) => {
-                    try {
-                        let [, stdout, stderr] = proc.communicate_utf8_finish(res);
-                        proc.get_exit_status() ? reject(stderr.trim()) : resolve(stdout.trim());
-                    } catch(e) {
-                        reject(e.message);
-                    }
-                });
-            } catch(e) {
-                reject(e.message);
-            }
+    async _execute(cmd) {
+        let proc = new Gio.Subprocess({
+            argv: GLib.shell_parse_argv(cmd)[1],
+            flags: Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_PIPE,
         });
+        proc.init(null);
+        let [stdout, stderr] = await proc.communicate_utf8_async(null, null);
+        if(proc.get_exit_status()) throw new Error(stderr.trim());
+
+        return stdout.trim();
     }
 
     _checkUpdates() {

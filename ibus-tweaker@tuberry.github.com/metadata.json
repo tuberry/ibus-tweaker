@@ -1,5 +1,5 @@
 {
-  "description": "Tweaker of IBus for orientation, theme, font and ascii mode auto-switch\n\nFor support, please report any issues via the homepage link below.",
+  "description": "Tweaker of IBus for orientation, theme, font and input mode auto-switch\n\nFor support, please report any issues via the homepage link below.",
   "gettext-domain": "gnome-shell-extension-ibus-tweaker",
   "name": "IBus Tweaker",
   "settings-schema": "org.gnome.shell.extensions.ibus-tweaker",
