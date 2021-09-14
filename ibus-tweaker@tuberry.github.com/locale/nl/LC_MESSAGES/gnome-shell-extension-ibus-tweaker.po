@@ -1,5 +1,5 @@
-# Chinese translations for gnome-shell-extension-ibus-tweaker package
-# gnome-shell-extension-ibus-tweaker 软件包的简体中文翻译.
+# Dutch translations for gnome-shell-extension-ibus-tweaker package
+# gnome-shell-extension-ibus-tweaker
 # Copyright (C) 2021 THE gnome-shell-extension-ibus-tweaker'S COPYRIGHT HOLDER
 # This file is distributed under the same license as the gnome-shell-extension-ibus-tweaker package.
 # Automatically generated, 2021.
