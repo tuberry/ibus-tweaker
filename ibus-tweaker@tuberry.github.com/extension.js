@@ -72,12 +72,12 @@ const IBusAutoSwitch = GObject.registerClass({
 
     set shortcut(shortcut) {
         if(shortcut) {
-            Main.wm.addKeybinding(Fields.SHORTCUT, gsettings, Meta.KeyBindingFlags.NONE, Shell.ActionMode.ALL, () => {
+            this._shortId = Main.wm.addKeybinding(Fields.SHORTCUT, gsettings, Meta.KeyBindingFlags.NONE, Shell.ActionMode.ALL, () => {
                 if(!this._state) IBusManager.activateProperty(INPUTMODE, IBus.PropState.CHECKED);
                 Main.openRunDialog();
             });
         } else {
-            Main.wm.removeKeybinding(Fields.SHORTCUT);
+            if(this._shortId !== undefined) Main.wm.removeKeybinding(Fields.SHORTCUT), delete this._shortId;
         }
     }
 
@@ -96,11 +96,11 @@ const IBusAutoSwitch = GObject.registerClass({
         this.shortcut = false;
         gsettings.set_value(Fields.INPUTLIST, new GLib.Variant('a{sb}', Object.fromEntries(this._states)));
         if(this._onWindowChangedID)
-            global.display.disconnect(this._onWindowChangedID), this._onWindowChangedID = 0;
+            global.display.disconnect(this._onWindowChangedID), delete this._onWindowChangedID;
         if(this._overviewShowingID)
-            Main.overview.disconnect(this._overviewShowingID), this._overviewShowingID = 0;
+            Main.overview.disconnect(this._overviewShowingID), delete this._overviewShowingID;
         if(this._overviewHiddenID)
-            Main.overview.disconnect(this._overviewHiddenID), this._overviewHiddenID = 0;
+            Main.overview.disconnect(this._overviewHiddenID), delete this._overviewHiddenID;
     }
 });
 
@@ -190,54 +190,56 @@ const IBusThemeManager = GObject.registerClass({
     }
 
     _onProxyChanged() {
-        let style = this.style;
         this._light = this._proxy.NightLightActive;
-        if(style == this.style || this._style === undefined) return;
-        this.style = this._style;
+        this._updateStyle();
     }
 
     set night(night) {
-        let style = this.style;
         this._night = night;
-        if(style == this.style || this._style === undefined) return;
-        this.style = this._style;
-    }
-
-    set color(color) {
-        this._color = this._palatte[color];
-        if(this.style) {
-            if(this._prvColor) CandidatePopup.remove_style_class_name('night-%s'.format(this._prvColor));
-            CandidatePopup.add_style_class_name('night-%s'.format(this._color));
-        } else {
-            if(this._prvColor) CandidatePopup.remove_style_class_name(this._prvColor);
-            CandidatePopup.add_style_class_name(this._color);
-        }
-        this._prvColor = this._color;
-    }
-
-    get style() {
-        return this._style == STYLE.AUTO ? this._night && this._light : this._style == STYLE.DARK;
+        this._updateStyle();
     }
 
     set style(style) {
         this._style = style;
-        if(this._color === undefined) {
-            if(this.style) {
-                CandidatePopup.add_style_class_name('night');
-            } else {
-                CandidatePopup.remove_style_class_name('night');
-            }
+        this._updateStyle();
+    }
+
+    set color(color) {
+        this._color = this._palatte[color];
+        this._updateStyle();
+    }
+
+    get dark() {
+        return this._style == STYLE.AUTO ? this._night && this._light : this._style == STYLE.DARK;
+    }
+
+    setDark(dark) {
+        if(this._dark = dark) {
+            CandidatePopup.remove_style_class_name(this._color);
+            CandidatePopup.add_style_class_name('night');
+            CandidatePopup.add_style_class_name('night-%s'.format(this._color));
         } else {
-            if(this.style) {
-                CandidatePopup.remove_style_class_name(this._color);
-                CandidatePopup.add_style_class_name('night');
-                CandidatePopup.add_style_class_name('night-%s'.format(this._color));
-            } else {
-                CandidatePopup.remove_style_class_name('night');
-                CandidatePopup.remove_style_class_name('night-%s'.format(this._color));
-                CandidatePopup.add_style_class_name(this._color);
-            }
+            CandidatePopup.remove_style_class_name('night');
+            CandidatePopup.remove_style_class_name('night-%s'.format(this._color));
+            CandidatePopup.add_style_class_name(this._color);
         }
+    }
+
+    toggleColor() {
+        if(this._dark) {
+            if(this._prevColor) CandidatePopup.remove_style_class_name('night-%s'.format(this._prevColor));
+            CandidatePopup.add_style_class_name('night-%s'.format(this._color));
+        } else {
+            if(this._prevColor) CandidatePopup.remove_style_class_name(this._prevColor);
+            CandidatePopup.add_style_class_name(this._color);
+        }
+        this._prevColor = this._color;
+    }
+
+    _updateStyle() {
+        if([this._night, this._style, this._color].some(x => x === undefined)) return;
+        if(this._dark !== this.dark) this.setDark(this.dark);
+        if(this._prevColor !== this._color) this.toggleColor();
     }
 
     set pgbutton(page) {
@@ -400,13 +402,13 @@ const UpdatesIndicator = GObject.registerClass({
     _checkUpdated() {
         if(!this._fileMonitor) return;
         if(this._fileChangedId)
-            this._fileMonitor.disconnect(this._fileChangedId), this._fileChangedId = 0;
+            this._fileMonitor.disconnect(this._fileChangedId), delete this._fileChangedId;
         delete this._fileMonitor;
     }
 
     destroy() {
         if(this._checkUpdatesId)
-            GLib.source_remove(this._checkUpdatesId), this._checkUpdatesId = 0;
+            GLib.source_remove(this._checkUpdatesId), delete this._checkUpdatesId;
         this._checkUpdated();
         this._button.destroy();
         delete this._button;
