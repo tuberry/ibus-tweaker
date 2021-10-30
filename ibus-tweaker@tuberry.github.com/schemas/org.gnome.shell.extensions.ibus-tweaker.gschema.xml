@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <schemalist>
   <schema id="org.gnome.shell.extensions.ibus-tweaker" path="/org/gnome/shell/extensions/ibus-tweaker/">
-    <key type="b" name="enable-hotkey">
+    <key type="b" name="enable-dialog">
         <default>true</default>
-        <summary>enable hotkey</summary>
+        <summary>enable dialog hotkey</summary>
     </key>
     <key type="b" name="enable-orientation">
         <default>false</default>
@@ -13,6 +13,10 @@
         <default>false</default>
         <summary>use custom font</summary>
     </key>
+    <key type="b" name="hide-page-button">
+        <default>true</default>
+        <summary>hide page button</summary>
+    </key>
     <key type="b" name="enable-ms-theme">
         <default>false</default>
         <summary>enable MS theme</summary>
@@ -21,10 +25,19 @@
         <default>true</default>
         <summary>enable auto switch</summary>
     </key>
+    <key type="b" name="enable-clip-history">
+        <default>false</default>
+        <summary>enable clip history</summary>
+    </key>
     <key type="u" name="candidate-orientation">
         <range min="0" max="1"/>
         <default>0</default>
         <summary>candidate orientation</summary>
+    </key>
+    <key type="u" name="clip-history-page-size">
+        <default>5</default>
+        <range min="4" max="10"/>
+        <summary>clip history page size</summary>
     </key>
     <key type="u" name="default-variant">
         <default>0</default>
@@ -36,24 +49,24 @@
         <range min="0" max="7"/>
         <summary>MS theme color</summary>
     </key>
-    <key type="u" name="unkown-ascii-state">
+    <key type="u" name="unkown-input-mode">
         <default>2</default>
         <range min="0" max="2"/>
-        <summary>input state of a new unknown window</summary>
+        <summary>input mode of unknown windows</summary>
     </key>
     <key type="a{sb}" name="input-mode-list">
         <default>[]</default>
         <summary>input mode list</summary>
     </key>
-    <key type="s" name="ascii-mode">
-        <default>"A#en#英"</default>
-        <summary>ascii mode</summary>
-    </key>
     <key type="s" name="custom-font">
         <default>"Sans 16"</default>
         <summary>custom font</summary>
     </key>
-    <key type="as" name="run-dialog">
+    <key type="as" name="ibus-tweaker-clip-history">
+        <default><![CDATA[['<Super>semicolon']]]></default>
+        <summary>clip history shortcut</summary>
+    </key>
+    <key type="as" name="ibus-tweaker-run-dialog">
         <default><![CDATA[['<Super>r']]]></default>
         <summary>run-dialog</summary>
     </key>

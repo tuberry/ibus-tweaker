@@ -1,6 +1,6 @@
 # ibus-tweaker
 
-Tweaker of ibus in gnome-shell for orientation, theme, font and input mode autoswitch.
+Tweaker of IBus in GNOME Shell for orientation, theme, font, input mode and clipboard history.
 > 狙公赋芧曰朝三而暮四。众狙皆怒。曰然则朝四而暮三。众狙皆悦。 —— *《庄子·齐物论》*<br>
 [![license]](/LICENSE)
 </br>
@@ -31,13 +31,24 @@ For older versions, it's necessary to switch the git tag before `make`:
 git checkout your_gnome_shell_version
 ```
 
+### Dependencies
+
+**Clipboard history**: The Chinese search function depends on [python-pinyin], which can be used to filter results by pinyin initials:
+
+```bash
+yay -S pypinyin # use your distro's package manager instead
+```
+
+https://user-images.githubusercontent.com/17917040/139533759-a5ebe54c-2fca-4006-9257-850877268499.mp4
+
 ## Features
 
-![itprefs](https://user-images.githubusercontent.com/17917040/112714757-e4772c80-8f16-11eb-96b6-2509431f3877.png)
+![itprefs](https://user-images.githubusercontent.com/17917040/139532873-6b21d9de-2878-45ad-b143-12e5e8ae417c.png)
 
 ## Acknowledgements
 
-* [ibus-font-setting](https://extensions.gnome.org/extension/1121/ibus-font-setting/)
+* [ibus-font-setting](https://extensions.gnome.org/extension/1121/ibus-font-setting/): font setting
 
+[python-pinyin]:https://github.com/mozillazg/python-pinyin
 [EGO]:https://extensions.gnome.org/extension/2820/ibus-tweaker/
 [license]:https://img.shields.io/badge/license-GPLv3-green.svg

@@ -24,6 +24,33 @@
     padding: 0.5em;
 }
 
+.vertical .ibus-tweaker-candidate-page-button-box {
+    border-top-width: 1px;
+    padding-top: 0;
+}
+
+.horizontal .ibus-tweaker-candidate-page-button-box {
+    border-left-width: 1px;
+    padding-left: 0;
+}
+
+.ibus-tweaker-candidate-page-button {
+    padding: 0;
+}
+
+.ibus-tweaker-candidate-page-button-previous {
+    border-right-width: 0;
+    border-radius: 0.2em;
+}
+
+.ibus-tweaker-candidate-page-button-next {
+    border-radius: 0.2em;
+}
+
+.ibus-tweaker-candidate-page-button-icon {
+    icon-size: 1.45em;
+}
+
 .ibus-tweaker-candidate-popup-boxpointer {
     -arrow-background-color: transparent;
     -arrow-border-radius: 0.8125em;
@@ -39,10 +66,12 @@
     background-color: rgba(249, 249, 249, 1);
 }
 
+.ibus-tweaker-candidate-page-button,
 .ibus-tweaker-candidate-box:selected {
     color: rgba(0, 0, 0, 1);
 }
 
+.ibus-tweaker-candidate-page-button:insensitive,
 .ibus-tweaker-candidate-box .ibus-tweaker-candidate-index {
     color: rgba(0, 0, 0, 0.6);
 }
@@ -52,10 +81,12 @@
     background-color: rgba(63, 63, 63, 1);
 }
 
+.night .ibus-tweaker-candidate-page-button,
 .night .ibus-tweaker-candidate-box:selected {
     color: rgba(255, 255, 255, 1);
 }
 
+.night .ibus-tweaker-candidate-page-button:insensitive,
 .night .ibus-tweaker-candidate-box .ibus-tweaker-candidate-index {
     color: rgba(255, 255, 255, 0.6);
 }
@@ -68,13 +99,15 @@
 /*
  *  #F2A5BC
  */
+.red .ibus-tweaker-candidate-page-button-box,
 .red .ibus-tweaker-candidate-popup-content,
 .red .ibus-tweaker-candidate-popup-text {
     border-color: rgba(242, 165, 188, 0.95);
 }
 
+.red .ibus-tweaker-candidate-page-button:hover,
 .red .ibus-tweaker-candidate-box:hover {
-    background-color: rgba(242, 165, 188, 0.5);
+    background-color: rgba(242, 165, 188, 0.4);
 }
 
 .red .ibus-tweaker-candidate-box:selected {
@@ -84,13 +117,15 @@
 /*
  *  #B21947
  */
+.night-red .ibus-tweaker-candidate-page-button-box,
 .night-red .ibus-tweaker-candidate-popup-content,
 .night-red .ibus-tweaker-candidate-popup-text {
     border-color: rgba(178, 25, 71, 0.95);
 }
 
+.night-red .ibus-tweaker-candidate-page-button:hover,
 .night-red .ibus-tweaker-candidate-box:hover {
-    background-color: rgba(178, 25, 71, 0.5);
+    background-color: rgba(178, 25, 71, 0.4);
 }
 
 .night-red .ibus-tweaker-candidate-box:selected {
@@ -101,13 +136,15 @@
 /*
  *  #A7F2A5
  */
+.green .ibus-tweaker-candidate-page-button-box,
 .green .ibus-tweaker-candidate-popup-content,
 .green .ibus-tweaker-candidate-popup-text {
     border-color: rgba(167, 242, 165, 0.95);
 }
 
+.green .ibus-tweaker-candidate-page-button:hover,
 .green .ibus-tweaker-candidate-box:hover {
-    background-color: rgba(167, 242, 165, 0.5);
+    background-color: rgba(167, 242, 165, 0.4);
 }
 
 .green .ibus-tweaker-candidate-box:selected {
@@ -117,13 +154,15 @@
 /*
  *  #1CB219
  */
+.night-green .ibus-tweaker-candidate-page-button-box,
 .night-green .ibus-tweaker-candidate-popup-content,
 .night-green .ibus-tweaker-candidate-popup-text {
     border-color: rgba(28, 178, 25, 0.95);
 }
 
+.night-green .ibus-tweaker-candidate-page-button:hover,
 .night-green .ibus-tweaker-candidate-box:hover {
-    background-color: rgba(28, 178, 25, 0.5);
+    background-color: rgba(28, 178, 25, 0.4);
 }
 
 .night-green .ibus-tweaker-candidate-box:selected {
@@ -134,13 +173,15 @@
 /*
  *  #F2BCA5
  */
+.orange .ibus-tweaker-candidate-page-button-box,
 .orange .ibus-tweaker-candidate-popup-content,
 .orange .ibus-tweaker-candidate-popup-text {
     border-color: rgba(242, 188, 165, 0.95);
 }
 
+.orange .ibus-tweaker-candidate-page-button:hover,
 .orange .ibus-tweaker-candidate-box:hover {
-    background-color: rgba(242, 188, 165, 0.5);
+    background-color: rgba(242, 188, 165, 0.4);
 }
 
 .orange .ibus-tweaker-candidate-box:selected {
@@ -150,13 +191,15 @@
 /*
  *  #B24719
  */
+.night-orange .ibus-tweaker-candidate-page-button-box,
 .night-orange .ibus-tweaker-candidate-popup-content,
 .night-orange .ibus-tweaker-candidate-popup-text {
     border-color: rgba(178, 71, 25, 0.95);
 }
 
+.night-orange .ibus-tweaker-candidate-page-button:hover,
 .night-orange .ibus-tweaker-candidate-box:hover {
-    background-color: rgba(178, 71, 25, 0.5);
+    background-color: rgba(178, 71, 25, 0.4);
 }
 
 .night-orange .ibus-tweaker-candidate-box:selected {
@@ -167,13 +210,15 @@
 /*
  *  #A5C4F2
  */
+.blue .ibus-tweaker-candidate-page-button-box,
 .blue .ibus-tweaker-candidate-popup-content,
 .blue .ibus-tweaker-candidate-popup-text {
     border-color: rgba(165, 196, 242, 0.95);
 }
 
+.blue .ibus-tweaker-candidate-page-button:hover,
 .blue .ibus-tweaker-candidate-box:hover {
-    background-color: rgba(165, 196, 242, 0.5);
+    background-color: rgba(165, 196, 242, 0.4);
 }
 
 .blue .ibus-tweaker-candidate-box:selected {
@@ -183,13 +228,15 @@
 /*
  *  #1956B2
  */
+.night-blue .ibus-tweaker-candidate-page-button-box,
 .night-blue .ibus-tweaker-candidate-popup-content,
 .night-blue .ibus-tweaker-candidate-popup-text {
     border-color: rgba(25, 86, 178, 0.95);
 }
 
+.night-blue .ibus-tweaker-candidate-page-button:hover,
 .night-blue .ibus-tweaker-candidate-box:hover {
-    background-color: rgba(25, 86, 178, 0.5);
+    background-color: rgba(25, 86, 178, 0.4);
 }
 
 .night-blue .ibus-tweaker-candidate-box:selected {
@@ -200,13 +247,15 @@
 /*
  *  #E2A5F2
  */
+.purple .ibus-tweaker-candidate-page-button-box,
 .purple .ibus-tweaker-candidate-popup-content,
 .purple .ibus-tweaker-candidate-popup-text {
     border-color: rgba(226, 165, 242, 0.95);
 }
 
+.purple .ibus-tweaker-candidate-page-button:hover,
 .purple .ibus-tweaker-candidate-box:hover {
-    background-color: rgba(226, 165, 242, 0.5);
+    background-color: rgba(226, 165, 242, 0.4);
 }
 
 .purple .ibus-tweaker-candidate-box:selected {
@@ -216,13 +265,15 @@
 /*
  *  #9319B2
  */
+.night-purple .ibus-tweaker-candidate-page-button-box,
 .night-purple .ibus-tweaker-candidate-popup-content,
 .night-purple .ibus-tweaker-candidate-popup-text {
     border-color: rgba(147, 25, 178, 0.95);
 }
 
+.night-purple .ibus-tweaker-candidate-page-button:hover,
 .night-purple .ibus-tweaker-candidate-box:hover {
-    background-color: rgba(147, 25, 178, 0.5);
+    background-color: rgba(147, 25, 178, 0.4);
 }
 
 .night-purple .ibus-tweaker-candidate-box:selected {
@@ -233,13 +284,15 @@
 /*
  *  #A5F2F2
  */
+.turquoise .ibus-tweaker-candidate-page-button-box,
 .turquoise .ibus-tweaker-candidate-popup-content,
 .turquoise .ibus-tweaker-candidate-popup-text {
     border-color: rgba(165, 242, 242, 0.95);
 }
 
+.turquoise .ibus-tweaker-candidate-page-button:hover,
 .turquoise .ibus-tweaker-candidate-box:hover {
-    background-color: rgba(165, 242, 242, 0.5);
+    background-color: rgba(165, 242, 242, 0.4);
 }
 
 .turquoise .ibus-tweaker-candidate-box:selected {
@@ -249,13 +302,15 @@
 /*
  *  #19B2B2
  */
+.night-turquoise .ibus-tweaker-candidate-page-button-box,
 .night-turquoise .ibus-tweaker-candidate-popup-content,
 .night-turquoise .ibus-tweaker-candidate-popup-text {
     border-color: rgba(25, 178, 178, 0.95);
 }
 
+.night-turquoise .ibus-tweaker-candidate-page-button:hover,
 .night-turquoise .ibus-tweaker-candidate-box:hover {
-    background-color: rgba(25, 178, 178, 0.5);
+    background-color: rgba(25, 178, 178, 0.4);
 }
 
 .night-turquoise .ibus-tweaker-candidate-box:selected {
@@ -266,13 +321,15 @@
 /*
  *  #CCCCCC
  */
+.grey .ibus-tweaker-candidate-page-button-box,
 .grey .ibus-tweaker-candidate-popup-content,
 .grey .ibus-tweaker-candidate-popup-text {
     border-color: rgba(204, 204, 204, 0.95);
 }
 
+.grey .ibus-tweaker-candidate-page-button:hover,
 .grey .ibus-tweaker-candidate-box:hover {
-    background-color: rgba(204, 204, 204, 0.5);
+    background-color: rgba(204, 204, 204, 0.4);
 }
 
 .grey .ibus-tweaker-candidate-box:selected {
@@ -282,13 +339,15 @@
 /*
  *  #666666
  */
+.night-grey .ibus-tweaker-candidate-page-button-box,
 .night-grey .ibus-tweaker-candidate-popup-content,
 .night-grey .ibus-tweaker-candidate-popup-text {
     border-color: rgba(102, 102, 102, 0.95);
 }
 
+.night-grey .ibus-tweaker-candidate-page-button:hover,
 .night-grey .ibus-tweaker-candidate-box:hover {
-    background-color: rgba(102, 102, 102, 0.5);
+    background-color: rgba(102, 102, 102, 0.4);
 }
 
 .night-grey .ibus-tweaker-candidate-box:selected {
