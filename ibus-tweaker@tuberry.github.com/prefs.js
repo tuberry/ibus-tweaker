@@ -1,5 +1,6 @@
 // vim:fdm=syntax
 // by tuberry
+/* exported init buildPrefsWidget */
 'use strict';
 
 const { Gio, Gtk, GObject } = imports.gi;
@@ -22,7 +23,7 @@ function init() {
 const IBusTweakerPrefs = GObject.registerClass(
 class IBusTweakerPrefs extends Gtk.ScrolledWindow {
     _init() {
-        super._init({ hscrollbar_policy: Gtk.PolicyType.NEVER, });
+        super._init({ hscrollbar_policy: Gtk.PolicyType.NEVER });
         this._palatte = [_('Red'), _('Green'), _('Orange'), _('Blue'), _('Purple'), _('Turquoise'), _('Grey')];
 
         this._buildWidgets();
@@ -52,11 +53,11 @@ class IBusTweakerPrefs extends Gtk.ScrolledWindow {
         let grid = new UI.ListGrid();
         grid._add(this._field_page_button);
         grid._add(this._field_enable_orien,  this._field_orientation);
-        grid._add(this._field_enable_font,   this._field_custom_font);
         grid._add(this._field_enable_input,  this._field_unknown_mode);
         grid._add(this._field_enable_dialog, this._field_run_dialog);
         grid._add(this._field_enable_theme,  this._field_theme_style, this._field_theme_color);
         grid._add(this._field_enable_clip,   this._field_clip_page,   this._field_clip_history);
+        grid._add(this._field_enable_font,   this._field_custom_font);
         this.set_child(new UI.Frame(grid));
     }
 

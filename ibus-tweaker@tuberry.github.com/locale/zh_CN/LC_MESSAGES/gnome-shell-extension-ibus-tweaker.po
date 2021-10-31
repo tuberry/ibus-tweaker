@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: gnome-shell-extension-ibus-tweaker 35\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2021-10-30 21:12+0800\n"
+"POT-Creation-Date: 2021-10-31 21:52+0800\n"
 "PO-Revision-Date: 2021-08-18 14:09+0800\n"
 "Last-Translator: Automatically generated\n"
 "Language-Team: none\n"
@@ -17,110 +17,110 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 
-#: extension.js:52
-msgid "L"
-msgstr "行"
+#: extension.js:47 extension.js:645
+msgid "C"
+msgstr "字"
 
-#: extension.js:510
+#: extension.js:492
 msgid "Clipboard: "
 msgstr "剪贴板："
 
-#: extension.js:598
+#: extension.js:576
 msgid "Empty history."
 msgstr "历史为空。"
 
-#: prefs.js:26
+#: prefs.js:27
 msgid "Red"
 msgstr "玫瑰红"
 
-#: prefs.js:26
+#: prefs.js:27
 msgid "Green"
 msgstr "薄荷绿"
 
-#: prefs.js:26
+#: prefs.js:27
 msgid "Orange"
 msgstr "热带橙"
 
-#: prefs.js:26
+#: prefs.js:27
 msgid "Blue"
 msgstr "科技蓝"
 
-#: prefs.js:26
+#: prefs.js:27
 msgid "Purple"
 msgstr "木槿紫"
 
-#: prefs.js:26
+#: prefs.js:27
 msgid "Turquoise"
 msgstr "水鸭青"
 
-#: prefs.js:26
+#: prefs.js:27
 msgid "Grey"
 msgstr "混沌灰"
 
-#: prefs.js:36
+#: prefs.js:37
 msgid "Run dialog"
 msgstr "运行命令框"
 
-#: prefs.js:37
+#: prefs.js:38
 msgid "MS IME theme"
 msgstr "仿微软主题"
 
-#: prefs.js:38
+#: prefs.js:39
 msgid "Use custom font"
 msgstr "自定义字体"
 
-#: prefs.js:39
+#: prefs.js:40
 msgid "Hide page buttons"
 msgstr "隐藏页按钮"
 
-#: prefs.js:40
+#: prefs.js:41
 msgid "Autoswitch input mode"
 msgstr "中英文切换"
 
-#: prefs.js:41
+#: prefs.js:42
 msgid "Candidates orientation"
 msgstr "候选框方向"
 
-#: prefs.js:42
+#: prefs.js:43
 msgid "Vertical"
 msgstr "竖直"
 
-#: prefs.js:42
+#: prefs.js:43
 msgid "Horizontal"
 msgstr "水平"
 
-#: prefs.js:43
+#: prefs.js:44
 msgid "On"
 msgstr "英文"
 
-#: prefs.js:43
+#: prefs.js:44
 msgid "Off"
 msgstr "中文"
 
-#: prefs.js:43
+#: prefs.js:44
 msgid "Default"
 msgstr "默认"
 
-#: prefs.js:44
+#: prefs.js:45
 msgid "Auto"
 msgstr "自动"
 
-#: prefs.js:44
+#: prefs.js:45
 msgid "Light"
 msgstr "浅色"
 
-#: prefs.js:44
+#: prefs.js:45
 msgid "Dark"
 msgstr "深色"
 
-#: prefs.js:47
+#: prefs.js:48
 msgid "Page size"
 msgstr "页面容量"
 
-#: prefs.js:48
+#: prefs.js:49
 msgid "Clipboard history"
 msgstr "剪贴板历史"
 
-#: prefs.js:48
+#: prefs.js:49
 msgid "Depends on python-pinyin for Chinese search"
 msgstr "中文搜索依赖于 python-pinyin"

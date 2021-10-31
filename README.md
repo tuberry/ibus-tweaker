@@ -41,6 +41,8 @@ yay -S pypinyin # use your distro's package manager instead
 
 https://user-images.githubusercontent.com/17917040/139533759-a5ebe54c-2fca-4006-9257-850877268499.mp4
 
+*Tips*: press <kbd>DELETE</kbd> to delete and <kbd>\\</kbd> to merge entries.
+
 ## Features
 
 ![itprefs](https://user-images.githubusercontent.com/17917040/139532873-6b21d9de-2878-45ad-b143-12e5e8ae417c.png)

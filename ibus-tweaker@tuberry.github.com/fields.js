@@ -1,6 +1,8 @@
 // vim:fdm=syntax
 // by tuberry
-//
+/* exported Fields */
+'use strict';
+
 var Fields = {
     CUSTOMFONT:    'custom-font',
     UPDATESDIR:    'updates-dir',
