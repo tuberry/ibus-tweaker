@@ -38,9 +38,9 @@ const STYLE = { 'AUTO': 0, 'LIGHT': 1, 'DARK': 2 };
 const UNKNOWN = { 'ON': 0, 'OFF': 1, 'DEFAULT': 2 };
 const INDICES = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'];
 const TEXTCMD = 'pypinyin -s FIRST_LETTER -- %s'; // python-pinyin for Chinese search
-const compact = x => x.replace(/\r|\n/g, '\u23ce');
-const shrink = (t, m = MAX_LEN) => t.length > m ? '%s…%s'.format(t.substring(0, m >> 1), t.substring(t.length - (m >> 1), t.length)) : t;
-const prune = t => t.length > MAX_LEN ? '%s…%d%s'.format(compact(shrink(t)), t.length, _('C')) : compact(t);
+const compact = x => x.replace(/\r|\n/g, '\u21b5');
+const shrink = (t, m = MAX_LEN) => t.length > m ? '%s\u2026%s'.format(t.substring(0, m >> 1), t.substring(t.length - (m >> 1), t.length)) : t;
+const prune = t => t.length > MAX_LEN ? '%s \u2140%d%s'.format(compact(shrink(t)), t.length, _('C')) : compact(t);
 const promiseTo = promise => promise.then(scc => { return [scc]; }).catch(err => { return [undefined, err]; });
 
 Gio._promisify(Gio.Subprocess.prototype, 'communicate_utf8_async', 'communicate_utf8_finish');
@@ -269,10 +269,9 @@ const IBusThemeManager = GObject.registerClass({
 
     _buildWidgets() {
         this._proxy = new ColorProxy(Gio.DBus.session, System.BUS_NAME, System.OBJECT_PATH, (proxy, error) => {
-            if(!error) {
-                this._onProxyChanged();
-                this._proxy.connect(System.PROPERTY, this._onProxyChanged.bind(this));
-            }
+            if(error) return;
+            this._onProxyChanged();
+            this._proxy.connect(System.PROPERTY, this._onProxyChanged.bind(this));
         });
     }
 
@@ -490,7 +489,7 @@ class IBusClipPopup extends BoxPointer.BoxPointer {
     }
 
     set preedit(text) {
-        this._preeditText.set_text(_('Clipboard: ') + text);
+        this._preeditText.set_text('%s%s'.format(_('Clipboard: '), text));
     }
 
     get _area() {
@@ -507,7 +506,7 @@ class IBusClipPopup extends BoxPointer.BoxPointer {
 
 const IBusClipHistory = GObject.registerClass({
     Properties: {
-        'shortcut': GObject.ParamSpec.boolean('shortcut', 'shortcut', 'shortcut', GObject.ParamFlags.WRITABLE, false),
+        'shortcut':  GObject.ParamSpec.boolean('shortcut', 'shortcut', 'shortcut', GObject.ParamFlags.WRITABLE, false),
         'page-size': GObject.ParamSpec.uint('page-size', 'page-size', 'page-size', GObject.ParamFlags.READWRITE, 4, 10, 5),
     },
 }, class IBusClipHistory extends GObject.Object {
@@ -642,7 +641,7 @@ const IBusClipHistory = GObject.registerClass({
         if(index === -1 || index >= this._lookup.length - 1) return;
         this._lookup.splice(this._cursor, 1);
         let [clip] = ClipTable.splice(index, 1);
-        let hays = clip[2] + ClipTable[index][2];
+        let hays = ClipTable[index][2] + clip[2];
         let text = '%s %s'.format(ClipTable[index][0], clip[0]);
         this._lookup[this._cursor] = ClipTable[index] = [text, prune(text), hays];
         this.update_lookup_table();
@@ -756,7 +755,7 @@ const Extensions = GObject.registerClass({
     }
 });
 
-const Extension = class {
+const Extension = class Extension {
     constructor() {
         ExtensionUtils.initTranslations();
     }
