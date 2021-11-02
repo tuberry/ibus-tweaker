@@ -38,7 +38,7 @@ const STYLE = { 'AUTO': 0, 'LIGHT': 1, 'DARK': 2 };
 const UNKNOWN = { 'ON': 0, 'OFF': 1, 'DEFAULT': 2 };
 const INDICES = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'];
 const TEXTCMD = 'pypinyin -s FIRST_LETTER -- %s'; // python-pinyin for Chinese search
-const compact = x => x.replace(/\r|\n/g, '\u21b5');
+const compact = (s, d = [[/\n|\r/g, '\u21b5'], ['\t', '\u21e5']]) => d.length ? compact(s.replaceAll(...d.pop()), d) : s;
 const shrink = (t, m = MAX_LEN) => t.length > m ? '%s\u2026%s'.format(t.substring(0, m >> 1), t.substring(t.length - (m >> 1), t.length)) : t;
 const prune = t => t.length > MAX_LEN ? '%s \u2140%d%s'.format(compact(shrink(t)), t.length, _('C')) : compact(t);
 const promiseTo = promise => promise.then(scc => { return [scc]; }).catch(err => { return [undefined, err]; });
@@ -526,8 +526,7 @@ const IBusClipHistory = GObject.registerClass({
 
     clipboard_changed(_sel, type, _src) {
         if(type !== St.ClipboardType.CLIPBOARD) return;
-        St.Clipboard.get_default().get_text(St.ClipboardType.CLIPBOARD, async (_clip, _text) => {
-            let text = _text && _text.trim();
+        St.Clipboard.get_default().get_text(St.ClipboardType.CLIPBOARD, async (_clip, text) => {
             if(!text) return;
             let index = ClipTable.findIndex(x => x[0] === text);
             if(index < 0) {
