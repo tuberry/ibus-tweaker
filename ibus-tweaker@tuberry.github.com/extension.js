@@ -41,7 +41,7 @@ const TEXTCMD = 'pypinyin -s FIRST_LETTER -- %s'; // python-pinyin for Chinese s
 const compact = (s, d = [[/\n|\r/g, '\u21b5'], ['\t', '\u21e5']]) => d.length ? compact(s.replaceAll(...d.pop()), d) : s;
 const shrink = (t, m = MAX_LEN) => t.length > m ? '%s\u2026%s'.format(t.substring(0, m >> 1), t.substring(t.length - (m >> 1), t.length)) : t;
 const prune = t => t.length > MAX_LEN ? '%s \u2140%d%s'.format(compact(shrink(t)), t.length, _('C')) : compact(t);
-const promiseTo = promise => promise.then(scc => { return [scc]; }).catch(err => { return [undefined, err]; });
+const promiseTo = p => p.then(scc => { return [scc]; }).catch(err => { return [undefined, err]; });
 
 Gio._promisify(Gio.Subprocess.prototype, 'communicate_utf8_async', 'communicate_utf8_finish');
 
@@ -241,9 +241,9 @@ class IBusPageButton extends GObject.Object {
     }
 
     destroy() {
+        CandidateArea._buttonBox.set_style('');
         CandidateArea._previousButton.show();
         CandidateArea._nextButton.show();
-        CandidateArea._buttonBox.set_style('');
     }
 });
 
@@ -516,7 +516,6 @@ const IBusClipHistory = GObject.registerClass({
         gsettings.bind(Fields.CLIPPAGESIZE, this, 'page-size', Gio.SettingsBindFlags.GET);
         this._viewId = Main.overview.connect('showing', () => { this.dispel(); });
         this._clipId = global.display.get_selection().connect('owner-changed', this.clipboard_changed.bind(this));
-        if(!ClipTable.length) this.clipboard_changed(null, St.ClipboardType.CLIPBOARD);
     }
 
     set shortcut(shortcut) {
@@ -524,8 +523,9 @@ const IBusClipHistory = GObject.registerClass({
         this._shortId = shortcut ? Main.wm.addKeybinding(Fields.CLIPHISTCUT, gsettings, Meta.KeyBindingFlags.NONE, Shell.ActionMode.ALL, this.show_lookup_table.bind(this)) : undefined;
     }
 
-    clipboard_changed(_sel, type, _src) {
+    clipboard_changed(_sel, type, src) {
         if(type !== St.ClipboardType.CLIPBOARD) return;
+        if(!src.get_mimetypes().length) { ClipTable.shift(); return; }
         St.Clipboard.get_default().get_text(St.ClipboardType.CLIPBOARD, async (_clip, text) => {
             if(!text) return;
             let index = ClipTable.findIndex(x => x[0] === text);
@@ -546,23 +546,25 @@ const IBusClipHistory = GObject.registerClass({
         }
         if(!this._ptr) {
             this._ptr = new IBusClipPopup();
-            this._ptr._area.connect('cursor-up', () => { this.cursor = -1; });
-            this._ptr._area.connect('cursor-down', () => { this.cursor = 1; });
-            this._ptr._area.connect('next-page', () => { this.cursor = this.page_size; });
+            this._ptr._area.connect('cursor-up', () => { this.offset = -1; });
+            this._ptr._area.connect('cursor-down', () => { this.offset = 1; });
+            this._ptr._area.connect('next-page', () => { this.offset = this.page_size; });
             this._ptr._area.connect('candidate-clicked', this.candidate_clicked.bind(this));
-            this._ptr._area.connect('previous-page', () => { this.cursor = -this.page_size; });
+            this._ptr._area.connect('previous-page', () => { this.offset = -this.page_size; });
         }
     }
 
-    set cursor(offset) {
-        let cursor, pos = this._cursor + offset;
+    set offset(offset) {
+        let pos = this._cursor + offset;
         if(pos >= 0 && pos < this._lookup.length) {
-            cursor = pos;
+            this.cursor = pos;
         } else if(pos >= this._lookup.length) {
             let expection = (this._page + 1) * this.page_size;
-            if(this._lookup.length > expection) cursor = expection;
+            if(this._lookup.length > expection) this.cursor = expection;
         }
-        if(cursor === undefined) return;
+    }
+
+    set cursor(cursor) {
         this._cursor = cursor;
         this.update_lookup_table();
     }
@@ -580,10 +582,9 @@ const IBusClipHistory = GObject.registerClass({
 
     show_lookup_table() {
         this.summon();
-        this._cursor = 0;
         this._preedit = '';
         this._lookup = [...ClipTable];
-        this.update_lookup_table();
+        this.cursor = 0;
         this._ptr._show();
     }
 
@@ -601,15 +602,15 @@ const IBusClipHistory = GObject.registerClass({
     process_key_event(_actor, keyval) {
         switch(keyval) {
         case Clutter.KEY_Up:
-            this.cursor = -1; break;
+            this.offset = -1; break;
         case Clutter.KEY_Down:
-            this.cursor = 1; break;
+            this.offset = 1; break;
         case Clutter.KEY_Left:
         case Clutter.KEY_Page_Up:
-            this.cursor = -this.page_size; break;
+            this.offset = -this.page_size; break;
         case Clutter.KEY_Right:
         case Clutter.KEY_Page_Down:
-            this.cursor = this.page_size; break;
+            this.offset = this.page_size; break;
         case Clutter.KEY_space:
         case Clutter.KEY_Return:
             this.candidate_clicked(null, this._cursor - this._start, 1, 0); break;
@@ -631,8 +632,7 @@ const IBusClipHistory = GObject.registerClass({
         if(index === -1) return;
         ClipTable.splice(index, 1);
         this._lookup.splice(this._cursor, 1);
-        if(this._cursor >= this._lookup.length) this._cursor = Math.max(this._lookup.length - 1, 0);
-        this.update_lookup_table();
+        this.cursor = this._cursor >= this._lookup.length ? Math.max(this._lookup.length - 1, 0) : this._cursor;
     }
 
     merge_current() {
@@ -643,7 +643,7 @@ const IBusClipHistory = GObject.registerClass({
         let hays = ClipTable[index][2] + clip[2];
         let text = '%s %s'.format(ClipTable[index][0], clip[0]);
         this._lookup[this._cursor] = ClipTable[index] = [text, prune(text), hays];
-        this.update_lookup_table();
+        this.cursor = this._cursor;
     }
 
     select_at(code) {
@@ -653,10 +653,9 @@ const IBusClipHistory = GObject.registerClass({
 
     set preedit(preedit) {
         if(this._preedit === preedit) return;
-        this._cursor = 0;
         this._preedit = preedit;
         this._lookup = ClipTable.filter(x => fuzzySearch(this._preedit, x[2]));
-        this.update_lookup_table();
+        this.cursor = 0;
     }
 
     dispel() {
