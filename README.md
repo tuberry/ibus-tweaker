@@ -45,7 +45,7 @@ https://user-images.githubusercontent.com/17917040/139533759-a5ebe54c-2fca-4006-
 
 ## Features
 
-![itprefs](https://user-images.githubusercontent.com/17917040/139532873-6b21d9de-2878-45ad-b143-12e5e8ae417c.png)
+![itpref](https://user-images.githubusercontent.com/17917040/155883168-fb8140ba-1cf9-497e-818c-a298125a0133.png)
 
 ## Acknowledgements
 

@@ -11,44 +11,33 @@ const IBusManager = imports.misc.ibusManager.getIBusManager();
 const InputScMgr = imports.ui.status.keyboard.getInputSourceManager();
 const { Shell, Clutter, Gio, GLib, Meta, IBus, Pango, St, GObject } = imports.gi;
 
+const LightProxy = Main.panel.statusArea.aggregateMenu._nightLight._proxy;
 const CandidatePopup = IBusManager._candidatePopup;
 const CandidateArea = CandidatePopup._candidateArea;
 const ExtensionUtils = imports.misc.extensionUtils;
-const _ = ExtensionUtils.gettext;
-const gsettings = ExtensionUtils.getSettings();
 const Me = ExtensionUtils.getCurrentExtension();
 const Fields = Me.imports.fields.Fields;
-
-const System = {
-    LIGHT:       'night-light-enabled',
-    PROPERTY:    'g-properties-changed',
-    BUS_NAME:    'org.gnome.SettingsDaemon.Color',
-    OBJECT_PATH: '/org/gnome/SettingsDaemon/Color',
-};
-const { loadInterfaceXML } = imports.misc.fileUtils;
-const ColorInterface = loadInterfaceXML(System.BUS_NAME);
-const ColorProxy = Gio.DBusProxy.makeProxyWrapper(ColorInterface);
-const ngsettings = new Gio.Settings({ schema: 'org.gnome.settings-daemon.plugins.color' });
-
+const _ = ExtensionUtils.gettext;
+const noop = () => {};
+let [gsettings, ngsettings, tgsettings] = Array(3).fill(null);
 let ClipTable = [];
-const MAX_LEN = 35;
-const INPUTMODE = 'InputMode';
-const ASCIIMODES = ['en', 'A', '英'];
-const STYLE = { 'AUTO': 0, 'LIGHT': 1, 'DARK': 2 };
-const UNKNOWN = { 'ON': 0, 'OFF': 1, 'DEFAULT': 2 };
-const INDICES = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'];
+
+const ASCIIs = ['en', 'A', '英'];
+const Unknown = { ON: 0, OFF: 1, DEFAULT: 2 };
+const Style = { AUTO: 0, LIGHT: 1, DARK: 2, SYSTEM: 3 };
+const Indices = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'];
 const TEXTCMD = 'pypinyin -s FIRST_LETTER -- %s'; // python-pinyin for Chinese search
 const compact = (s, d = [[/\n|\r/g, '\u21b5'], ['\t', '\u21e5']]) => d.length ? compact(s.replaceAll(...d.pop()), d) : s;
-const shrink = (t, m = MAX_LEN) => t.length > m ? '%s\u2026%s'.format(t.substring(0, m >> 1), t.substring(t.length - (m >> 1), t.length)) : t;
-const prune = t => t.length > MAX_LEN ? '%s \u2140%d%s'.format(compact(shrink(t)), t.length, _('C')) : compact(t);
+const shrink = (t, m = 35) => t.length > m ? '%s\u2026%s'.format(t.substring(0, m >> 1), t.substring(t.length - (m >> 1), t.length)) : t;
 const promiseTo = p => p.then(scc => { return [scc]; }).catch(err => { return [undefined, err]; });
+const genParam = (type, name, ...dflt) => GObject.ParamSpec[type](name, name, name, GObject.ParamFlags.READWRITE, ...dflt);
 
-Gio._promisify(Gio.Subprocess.prototype, 'communicate_utf8_async', 'communicate_utf8_finish');
+Gio._promisify(Gio.Subprocess.prototype, 'communicate_utf8_async');
 
 async function processText(text) {
     let [haystack] = await promiseTo(execute(TEXTCMD.format(GLib.shell_quote(text))));
 
-    return [text, prune(text), (haystack || text).replace(/[^A-Za-z]/g, '').toLowerCase()];
+    return [text, compact(shrink(text)), (haystack || text).replace(/[^A-Za-z]/g, '').toLowerCase()];
 }
 
 async function execute(cmd) {
@@ -77,7 +66,7 @@ function fuzzySearch(needle, haystack) {
 
 function addStyleClass(tmp, src, aim, cb) {
     for(let p in tmp) {
-        if(aim[p] === undefined) break;
+        if(!(p in aim)) continue;
         if(typeof tmp[p] === 'object') {
             if(Array.isArray(tmp[p])) tmp[p].forEach((x, i) => addStyleClass(x, src[p][i], aim[p][i], cb));
             else addStyleClass(tmp[p], src[p], aim[p], cb);
@@ -113,22 +102,25 @@ const TempPopup = {
     _auxText: { style_class: 'candidate-popup-text' },
 };
 
-const IBusAutoSwitch = GObject.registerClass({
-    Properties: {
-        'unknown':  GObject.ParamSpec.uint('unknown', 'unknown', 'unknown', GObject.ParamFlags.READWRITE, 0, 2, 2),
-        'shortcut': GObject.ParamSpec.boolean('shortcut', 'shortcut', 'shortcut', GObject.ParamFlags.WRITABLE, false),
-    },
-}, class IBusAutoSwitch extends GObject.Object {
-    _init() {
-        super._init();
+class IBusAutoSwitch extends GObject.Object {
+    static {
+        GObject.registerClass({
+            Properties: {
+                unknown:  genParam('uint', 'unknown', 0, 2, 2),
+                shortcut: genParam('boolean', 'shortcut', false),
+            },
+        }, this);
+    }
+
+    constructor() {
+        super();
         this._bindSettings();
-        this._overviewHiddenId = Main.overview.connect('hidden', this._onWindowChanged.bind(this));
-        this._overviewShowingId = Main.overview.connect('showing', this._onWindowChanged.bind(this));
-        this._onWindowChangedId = global.display.connect('notify::focus-window', this._onWindowChanged.bind(this));
+        global.display.connectObject('notify::focus-window', this._onWindowChanged.bind(this), this);
+        Main.overview.connectObject('hidden', this._onWindowChanged.bind(this), 'showing', this._onWindowChanged.bind(this), this);
     }
 
     get _state() {
-        return ASCIIMODES.includes(Main.panel.statusArea.keyboard._indicatorLabels[InputScMgr.currentSource.index].get_text());
+        return ASCIIs.includes(Main.panel.statusArea.keyboard._indicatorLabels[InputScMgr.currentSource.index].get_text());
     }
 
     get _toggle() {
@@ -136,52 +128,55 @@ const IBusAutoSwitch = GObject.registerClass({
         if(!win) return false;
 
         let state = this._state;
-        let store = this._states.get(this._tmpWindow);
-        if(state !== store) this._states.set(this._tmpWindow, state);
+        let store = this._states.get(this._tmp_win);
+        if(state !== store) this._states.set(this._tmp_win, state);
 
-        this._tmpWindow = win.wm_class ? win.wm_class.toLowerCase() : '';
-        if(!this._states.has(this._tmpWindow)) {
-            let unknown = this.unknown === UNKNOWN.DEFAULT ? state : this.unknown === UNKNOWN.ON;
-            this._states.set(this._tmpWindow, unknown);
+        this._tmp_win = win.wm_class ? win.wm_class.toLowerCase() : '';
+        if(!this._states.has(this._tmp_win)) {
+            let unknown = this.unknown === Unknown.DEFAULT ? state : this.unknown === Unknown.ON;
+            this._states.set(this._tmp_win, unknown);
         }
 
-        return state ^ this._states.get(this._tmpWindow);
+        return state ^ this._states.get(this._tmp_win);
     }
 
     set shortcut(shortcut) {
-        if(this._shortId) Main.wm.removeKeybinding(Fields.RUNSHORTCUT);
-        this._shortId = shortcut ? Main.wm.addKeybinding(Fields.RUNSHORTCUT, gsettings, Meta.KeyBindingFlags.NONE, Shell.ActionMode.ALL, () => {
-            if(!this._state) IBusManager.activateProperty(INPUTMODE, IBus.PropState.CHECKED);
+        this._shortId && Main.wm.removeKeybinding(Fields.RUNSHORTCUT);
+        this._shortId = shortcut && Main.wm.addKeybinding(Fields.RUNSHORTCUT, gsettings, Meta.KeyBindingFlags.NONE, Shell.ActionMode.ALL, () => {
+            if(!this._state) IBusManager.activateProperty('InputMode', IBus.PropState.CHECKED);
             Main.openRunDialog();
-        }) : undefined;
+        });
     }
 
     _onWindowChanged() {
-        if(this._toggle && IBusManager._panelService) IBusManager.activateProperty(INPUTMODE, IBus.PropState.CHECKED);
+        if(this._toggle && IBusManager._panelService) IBusManager.activateProperty('InputMode', IBus.PropState.CHECKED);
     }
 
     _bindSettings() {
-        gsettings.bind(Fields.UNKNOWNMODE, this, 'unknown', Gio.SettingsBindFlags.GET);
-        gsettings.bind(Fields.ENABLEDIALOG, this, 'shortcut', Gio.SettingsBindFlags.GET);
+        [[Fields.UNKNOWNMODE, 'unknown'], [Fields.ENABLEDIALOG, 'shortcut']]
+            .forEach(([x, y, z]) => gsettings.bind(x, this, y, z ?? Gio.SettingsBindFlags.GET));
         this._states = new Map(Object.entries(gsettings.get_value(Fields.INPUTLIST).deep_unpack()));
     }
 
     destroy() {
-        this.shortcut = false;
+        this.shortcut = null;
+        global.display.disconnectObject(this);
+        Main.overview.disconnectObject(this);
         gsettings.set_value(Fields.INPUTLIST, new GLib.Variant('a{sb}', Object.fromEntries(this._states)));
-        if(this._onWindowChangedId) global.display.disconnect(this._onWindowChangedId), delete this._onWindowChangedId;
-        if(this._overviewShowingId) Main.overview.disconnect(this._overviewShowingId), delete this._overviewShowingId;
-        if(this._overviewHiddenId) Main.overview.disconnect(this._overviewHiddenId), delete this._overviewHiddenId;
     }
-});
+}
 
-const IBusFontSetting = GObject.registerClass({
-    Properties: {
-        'fontname': GObject.ParamSpec.string('fontname', 'fontname', 'font name', GObject.ParamFlags.WRITABLE, 'Sans 16'),
-    },
-}, class IBusFontSetting extends GObject.Object {
-    _init() {
-        super._init();
+class IBusFontSetting extends GObject.Object {
+    static {
+        GObject.registerClass({
+            Properties: {
+                fontname: genParam('string', 'fontname', 'Sans 16'),
+            },
+        }, this);
+    }
+
+    constructor() {
+        super();
         gsettings.bind(Fields.CUSTOMFONT, this, 'fontname', Gio.SettingsBindFlags.GET);
     }
 
@@ -208,17 +203,21 @@ const IBusFontSetting = GObject.registerClass({
             x._indexLabel.set_style('');
         });
     }
-});
+}
 
-const IBusOrientation = GObject.registerClass({
-    Properties: {
-        'orientation': GObject.ParamSpec.uint('orientation', 'orientation', 'orientation', GObject.ParamFlags.WRITABLE, 0, 1, 1),
-    },
-}, class IBusOrientation extends GObject.Object {
-    _init() {
-        super._init();
+class IBusOrientation extends GObject.Object {
+    static {
+        GObject.registerClass({
+            Properties: {
+                orientation: genParam('uint', 'orientation', 0, 1, 1),
+            },
+        }, this);
+    }
+
+    constructor() {
+        super();
         this._originalSetOrientation = CandidateArea.setOrientation.bind(CandidateArea);
-        CandidateArea.setOrientation = () => {};
+        CandidateArea.setOrientation = noop;
         gsettings.bind(Fields.ORIENTATION, this, 'orientation', Gio.SettingsBindFlags.GET);
     }
 
@@ -229,12 +228,15 @@ const IBusOrientation = GObject.registerClass({
     destroy() {
         CandidateArea.setOrientation = this._originalSetOrientation;
     }
-});
+}
 
-const IBusPageButton = GObject.registerClass(
 class IBusPageButton extends GObject.Object {
-    _init() {
-        super._init();
+    static {
+        GObject.registerClass(this);
+    }
+
+    constructor() {
+        super();
         CandidateArea._buttonBox.set_style('border-width: 0;');
         CandidateArea._previousButton.hide();
         CandidateArea._nextButton.hide();
@@ -245,43 +247,47 @@ class IBusPageButton extends GObject.Object {
         CandidateArea._previousButton.show();
         CandidateArea._nextButton.show();
     }
-});
+}
 
-const IBusThemeManager = GObject.registerClass({
-    Properties: {
-        'night': GObject.ParamSpec.boolean('night', 'night', 'night', GObject.ParamFlags.READWRITE, false),
-        'style': GObject.ParamSpec.uint('style', 'style', 'style', GObject.ParamFlags.WRITABLE, 0, 2, 0),
-        'color': GObject.ParamSpec.uint('color', 'color', 'color', GObject.ParamFlags.WRITABLE, 0, 7, 3),
-    },
-}, class IBusThemeManager extends GObject.Object {
-    _init() {
-        super._init();
+class IBusThemeManager extends GObject.Object {
+    static {
+        GObject.registerClass({
+            Properties: {
+                color:  genParam('uint', 'color', 0, 7, 3),
+                style:  genParam('uint', 'style', 0, 3, 0),
+                night:  genParam('boolean', 'night', false),
+                scheme: genParam('string', 'scheme', 'default'),
+            },
+        }, this);
+    }
+
+    constructor() {
+        super();
         this._replaceStyle();
         this._bindSettings();
-        this._buildWidgets();
+        this._onProxyChanged();
     }
 
     _bindSettings() {
-        ngsettings.bind(System.LIGHT,       this, 'night', Gio.SettingsBindFlags.GET);
-        gsettings.bind(Fields.MSTHEMESTYLE, this, 'style', Gio.SettingsBindFlags.GET);
-        gsettings.bind(Fields.MSTHEMECOLOR, this, 'color', Gio.SettingsBindFlags.GET);
-    }
-
-    _buildWidgets() {
-        this._proxy = new ColorProxy(Gio.DBus.session, System.BUS_NAME, System.OBJECT_PATH, (proxy, error) => {
-            if(error) return;
-            this._onProxyChanged();
-            this._proxy.connect(System.PROPERTY, this._onProxyChanged.bind(this));
-        });
+        tgsettings.bind('color-scheme', this, 'scheme', Gio.SettingsBindFlags.GET);
+        ngsettings.bind('night-light-enabled', this, 'night', Gio.SettingsBindFlags.GET);
+        [[Fields.MSTHEMESTYLE, 'style'], [Fields.MSTHEMECOLOR, 'color']]
+            .forEach(([x, y, z]) => gsettings.bind(x, this, y, z ?? Gio.SettingsBindFlags.GET));
+        LightProxy.connectObject('g-properties-changed', this._onProxyChanged.bind(this), this);
     }
 
     _onProxyChanged() {
-        this._light = this._proxy.NightLightActive;
+        this._light = LightProxy.NightLightActive;
         this._updateStyle();
     }
 
     set night(night) {
         this._night = night;
+        this._updateStyle();
+    }
+
+    set scheme(scheme) {
+        this._scheme = scheme === 'prefer-dark';
         this._updateStyle();
     }
 
@@ -296,7 +302,8 @@ const IBusThemeManager = GObject.registerClass({
     }
 
     get dark() {
-        return this._style === STYLE.AUTO ? this._night && this._light : this._style === STYLE.DARK;
+        return (this._style === Style.AUTO && this._night && this._light) ||
+            (this._style === Style.SYSTEM && this._scheme) || this._style === Style.DARK;
     }
 
     setDark(dark) {
@@ -313,19 +320,19 @@ const IBusThemeManager = GObject.registerClass({
 
     toggleColor() {
         if(this._dark) {
-            if(this._prevColor) CandidatePopup.remove_style_class_name('night-%s'.format(this._prevColor));
+            if(this._prev_color) CandidatePopup.remove_style_class_name('night-%s'.format(this._prev_color));
             CandidatePopup.add_style_class_name('night-%s'.format(this._color));
         } else {
-            if(this._prevColor) CandidatePopup.remove_style_class_name(this._prevColor);
+            if(this._prev_color) CandidatePopup.remove_style_class_name(this._prev_color);
             CandidatePopup.add_style_class_name(this._color);
         }
-        this._prevColor = this._color;
+        this._prev_color = this._color;
     }
 
     _updateStyle() {
-        if([this._night, this._style, this._color].some(x => x === undefined)) return;
+        if(!['_night', '_style', '_color', '_scheme'].every(x => x in this)) return;
         if(this._dark !== this.dark) this.setDark(this.dark);
-        if(this._prevColor !== this._color) this.toggleColor();
+        if(this._prev_color !== this._color) this.toggleColor();
     }
 
     _replaceStyle() {
@@ -345,48 +352,47 @@ const IBusThemeManager = GObject.registerClass({
 
     destroy() {
         this._restoreStyle();
-        delete this._proxy;
+        LightProxy.disconnectObject(this);
     }
-});
+}
 
-const UpdatesIndicator = GObject.registerClass({
-    Properties: {
-        'updatescmd': GObject.ParamSpec.string('updatescmd', 'updatescmd', 'updates cmd', GObject.ParamFlags.READWRITE, 'checkupdates'),
-        'updatesdir': GObject.ParamSpec.string('updatesdir', 'updatesdir', 'updates dir', GObject.ParamFlags.READWRITE, '/var/lib/pacman/local'),
-    },
-}, class UpdatesIndicator extends GObject.Object {
-    _init() {
-        super._init();
+class UpdatesIndicator extends GObject.Object {
+    static {
+        GObject.registerClass({
+            Properties: {
+                updatescmd: genParam('string', 'updatescmd', 'checkupdates'),
+                updatesdir: genParam('string', 'updatesdir', '/var/lib/pacman/local'),
+            },
+        }, this);
+    }
+
+    constructor() {
+        super();
         this._bindSettings();
         this._addIndicator();
         this._checkUpdates();
-        this._checkUpdatesId = GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, 3600, this._checkUpdates.bind(this));
+        this._checkUpdatesId = setInterval(this._checkUpdates.bind(this), 60 * 60 * 1000);
     }
 
     _bindSettings() {
-        gsettings.bind(Fields.UPDATESDIR,   this, 'updatesdir', Gio.SettingsBindFlags.GET);
-        gsettings.bind(Fields.CHECKUPDATES, this, 'updatescmd', Gio.SettingsBindFlags.GET);
+        [[Fields.UPDATESDIR, 'updatesdir'], [Fields.CHECKUPDATES, 'updatescmd']]
+            .forEach(([x, y, z]) => gsettings.bind(x, this, y, z ?? Gio.SettingsBindFlags.GET));
     }
 
     _checkUpdates() {
         execute(this.updatescmd)
             .then(scc => { this._showUpdates(scc ? scc.split(/\r\n|\r|\n/).length : 0); })
             .catch(() => { this._showUpdates(0); });
-
-        return GLib.SOURCE_CONTINUE;
     }
 
     _showUpdates(count) {
         this._checkUpdated();
-        if(!this._button) return;
         if(count) {
             let dir = Gio.File.new_for_path(this.updatesdir);
             this._fileMonitor = dir.monitor_directory(Gio.FileMonitorFlags.NONE, null);
-            this._fileChangedId = this._fileMonitor.connect('changed', () => {
-                GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, 10, () => {
-                    this._checkUpdates();
-                    return GLib.SOURCE_REMOVE;
-                });
+            this._fileMonitor.connect('changed', () => {
+                clearTimeout(this._fileMonitorId);
+                this._fileMonitorId = setTimeout(this._checkUpdates.bind(this), 10 * 1000);
             });
             this._button.label.set_text(count.toString());
             this._button.show();
@@ -396,21 +402,10 @@ const UpdatesIndicator = GObject.registerClass({
     }
 
     _addIndicator() {
-        if(Main.panel.statusArea[Me.metadata.uuid]) return;
         this._button = new PanelMenu.Button(0, 'Updates Indicator', true);
-        let box = new St.BoxLayout({
-            vertical: false,
-            style_class: 'panel-status-menu-box',
-        });
-        let icon = new St.Icon({
-            y_expand: false,
-            style_class: 'system-status-icon',
-            icon_name: 'software-update-available-symbolic',
-        });
-        this._button.label = new St.Label({
-            y_expand: false,
-            y_align: Clutter.ActorAlign.CENTER,
-        });
+        let box = new St.BoxLayout({ style_class: 'panel-status-menu-box' });
+        let icon = new St.Icon({ y_expand: false, style_class: 'system-status-icon', icon_name: 'software-update-available-symbolic' });
+        this._button.label = new St.Label({ y_expand: false, y_align: Clutter.ActorAlign.CENTER });
         box.add_child(icon);
         box.add_child(this._button.label);
         this._button.add_actor(box);
@@ -419,26 +414,30 @@ const UpdatesIndicator = GObject.registerClass({
     }
 
     _checkUpdated() {
-        if(!this._fileMonitor) return;
-        if(this._fileChangedId) this._fileMonitor.disconnect(this._fileChangedId), delete this._fileChangedId;
-        delete this._fileMonitor;
+        this._fileMonitor?.cancel();
+        this._fileMonitor = null;
     }
 
     destroy() {
-        if(this._checkUpdatesId) GLib.source_remove(this._checkUpdatesId), delete this._checkUpdatesId;
+        clearTimeout(this._fileMonitorId);
+        clearInterval(this._checkUpdatesId);
         this._checkUpdated();
         this._button.destroy();
-        delete this._button;
+        this._button = null;
     }
-});
+}
 
-const IBusClipPad = GObject.registerClass({
-    Signals: {
-        'clip-pad-pressed': { param_types: [GObject.TYPE_UINT] },
-    },
-}, class IBusClipPad extends Clutter.Actor {
-    _init() {
-        super._init({ reactive: true });
+class IBusClipPad extends Clutter.Actor {
+    static {
+        GObject.registerClass({
+            Signals: {
+                clip_pad_pressed: { param_types: [GObject.TYPE_UINT] },
+            },
+        }, this);
+    }
+
+    constructor() {
+        super({ reactive: true });
         this.set_size(...global.display.get_size());
         Main.layoutManager.addChrome(this);
         Main.pushModal(this, { actionMode: Shell.ActionMode.NORMAL });
@@ -453,22 +452,28 @@ const IBusClipPad = GObject.registerClass({
         if(Main._findModal(this) !== -1) Main.popModal(this);
         super.destroy();
     }
-});
+}
 
-const IBusClipPopup = GObject.registerClass(
 class IBusClipPopup extends BoxPointer.BoxPointer {
-    _init() {
-        super._init(St.Side.TOP);
+    static {
+        GObject.registerClass(this);
+    }
+
+    constructor() {
+        super(St.Side.TOP);
         this.visible = false;
         this.style_class = 'candidate-popup-boxpointer';
         Main.layoutManager.addChrome(this);
         let box = new St.BoxLayout({ style_class: 'candidate-popup-content', vertical: true });
-        this.bin.set_child(box);
-        this._preeditText = new St.Label({ style_class: 'candidate-popup-text', visible: true });
-        box.add(this._preeditText);
+        let hbox = new St.BoxLayout();
+        this._preeditText = new St.Label({ style_class: 'candidate-popup-text', visible: true, x_expand: true });
+        this._auxText = new St.Label({ style_class: 'candidate-popup-text', visible: true });
+        [this._preeditText, this._auxText].forEach(x => hbox.add(x));
+        box.add(hbox);
         this._candidateArea = new IBusPopup.CandidateArea();
         this._candidateArea.setOrientation(IBus.Orientation.VERTICAL);
         box.add(this._candidateArea);
+        this.bin.set_child(box);
         this._addStyle();
     }
 
@@ -492,6 +497,10 @@ class IBusClipPopup extends BoxPointer.BoxPointer {
         this._preeditText.set_text('%s%s'.format(_('Clipboard: '), text));
     }
 
+    set aux(numb) {
+        this._auxText.set_text(_('%dC').format(numb ?? 0));
+    }
+
     get _area() {
         return this._candidateArea;
     }
@@ -502,35 +511,38 @@ class IBusClipPopup extends BoxPointer.BoxPointer {
         this.open(BoxPointer.PopupAnimation.NONE);
         this.get_parent().set_child_above_sibling(this, null);
     }
-});
+}
 
-const IBusClipHistory = GObject.registerClass({
-    Properties: {
-        'shortcut':  GObject.ParamSpec.boolean('shortcut', 'shortcut', 'shortcut', GObject.ParamFlags.WRITABLE, false),
-        'page-size': GObject.ParamSpec.uint('page-size', 'page-size', 'page-size', GObject.ParamFlags.READWRITE, 4, 10, 5),
-    },
-}, class IBusClipHistory extends GObject.Object {
-    _init() {
-        super._init();
+class IBusClipHistory extends GObject.Object {
+    static {
+        GObject.registerClass({
+            Properties: {
+                page_size: genParam('uint', 'page_size', 4, 10, 5),
+                shortcut:  genParam('boolean', 'shortcut', false),
+            },
+        }, this);
+    }
+
+    constructor() {
+        super();
+        gsettings.bind(Fields.CLIPPAGESIZE, this, 'page_size', Gio.SettingsBindFlags.GET);
+        Main.overview.connectObject('showing',  this.dispel.bind(this), this);
+        global.display.get_selection().connectObject('owner-changed', this.onClipboardChanged.bind(this), this);
         this.shortcut = true;
-        gsettings.bind(Fields.CLIPPAGESIZE, this, 'page-size', Gio.SettingsBindFlags.GET);
-        this._viewId = Main.overview.connect('showing', () => { this.dispel(); });
-        this._clipId = global.display.get_selection().connect('owner-changed', this.clipboard_changed.bind(this));
     }
 
     set shortcut(shortcut) {
-        if(this._shortId) Main.wm.removeKeybinding(Fields.CLIPHISTCUT);
-        this._shortId = shortcut ? Main.wm.addKeybinding(Fields.CLIPHISTCUT, gsettings, Meta.KeyBindingFlags.NONE, Shell.ActionMode.ALL, this.show_lookup_table.bind(this)) : undefined;
+        this._shortId && Main.wm.removeKeybinding(Fields.CLIPHISTCUT);
+        this._shortId = shortcut && Main.wm.addKeybinding(Fields.CLIPHISTCUT, gsettings, Meta.KeyBindingFlags.NONE, Shell.ActionMode.ALL, this.showLookupTable.bind(this));
     }
 
-    clipboard_changed(_sel, type, src) {
+    onClipboardChanged(_sel, type, _src) {
         if(type !== St.ClipboardType.CLIPBOARD) return;
-        if(!src.get_mimetypes().length) { ClipTable.shift(); return; }
         St.Clipboard.get_default().get_text(St.ClipboardType.CLIPBOARD, async (_clip, text) => {
             if(!text) return;
             let index = ClipTable.findIndex(x => x[0] === text);
             if(index < 0) {
-                ClipTable.unshift(await processText(text));
+                ClipTable.unshift(await processText(text).catch(noop));
                 while(ClipTable.length > 64) ClipTable.pop();
             } else if(index > 0) {
                 [ClipTable[0], ClipTable[index]] = [ClipTable[index], ClipTable[0]];
@@ -541,16 +553,16 @@ const IBusClipHistory = GObject.registerClass({
     summon() {
         if(!this._pad) {
             this._pad = new IBusClipPad();
-            this._pad.connect('clip-pad-pressed', this.process_key_event.bind(this));
-            this._pad.connect('button-press-event', this.dispel.bind(this));
+            this._pad.connectObject('clip-pad-pressed', this.processKeyEvent.bind(this),
+                'button-press-event', this.dispel.bind(this), this);
         }
         if(!this._ptr) {
             this._ptr = new IBusClipPopup();
-            this._ptr._area.connect('cursor-up', () => { this.offset = -1; });
-            this._ptr._area.connect('cursor-down', () => { this.offset = 1; });
-            this._ptr._area.connect('next-page', () => { this.offset = this.page_size; });
-            this._ptr._area.connect('candidate-clicked', this.candidate_clicked.bind(this));
-            this._ptr._area.connect('previous-page', () => { this.offset = -this.page_size; });
+            this._ptr._area.connectObject('cursor-up', () => { this.offset = -1; },
+                'cursor-down', () => { this.offset = 1; },
+                'next-page', () => { this.offset = this.page_size; },
+                'candidate-clicked', this.candidateClicked.bind(this),
+                'previous-page', () => { this.offset = -this.page_size; }, this);
         }
     }
 
@@ -566,21 +578,22 @@ const IBusClipHistory = GObject.registerClass({
 
     set cursor(cursor) {
         this._cursor = cursor;
-        this.update_lookup_table();
+        this.updateLookupTable();
     }
 
-    update_lookup_table() {
+    updateLookupTable() {
         this._page = Math.floor(this._cursor / this.page_size);
         this._start = this._page * this.page_size;
         this._size = Math.min(this.page_size, this._lookup.length - this._start);
-        let indices = this._size ? INDICES.slice(0, this._size) : ['\u2205'];
+        let indices = this._size ? Indices.slice(0, this._size) : ['\u2205'];
         let candidates = this._size ? this._lookup.slice(this._start, this._start + this._size).map(x => x[1]) : [_('Empty history.')];
         this._ptr._area.setCandidates(indices, candidates, this._cursor % this.page_size, this._size);
         this._ptr._area.updateButtons(false, this._page, Math.ceil(this._lookup.length / this.page_size));
+        this._ptr.aux = this._lookup[this._cursor]?.[0].length;
         this._ptr.preedit = this._preedit;
     }
 
-    show_lookup_table() {
+    showLookupTable() {
         this.summon();
         this._preedit = '';
         this._lookup = [...ClipTable];
@@ -588,46 +601,43 @@ const IBusClipHistory = GObject.registerClass({
         this._ptr._show();
     }
 
-    candidate_clicked(_area, index, _button, _state) {
+    candidateClicked(_area, index, _button, _state) {
         this.dispel();
-        if(Meta.is_wayland_compositor()) GLib.timeout_add(GLib.PRIORITY_DEFAULT, 30, () => { this.commit_at(index); return GLib.SOURCE_REMOVE; });
-        else this.commit_at(index);
+        this.commitAt(index);
     }
 
-    commit_at(index) {
+    commitAt(index) {
         let [text] = this._lookup[this._start + index] || [undefined];
-        if(IBusManager._panelService && text) IBusManager._panelService.commit_text(IBus.Text.new_from_string(text));
+        if(!text) return;
+        if(Meta.is_wayland_compositor()) {
+            clearTimeout(this._delayId);
+            this._delayId = setTimeout(() => { IBusManager._panelService?.commit_text(IBus.Text.new_from_string(text)); }, 30);
+        } else {
+            IBusManager._panelService?.commit_text(IBus.Text.new_from_string(text));
+        }
     }
 
-    process_key_event(_actor, keyval) {
+    processKeyEvent(_actor, keyval) {
         switch(keyval) {
-        case Clutter.KEY_Up:
-            this.offset = -1; break;
-        case Clutter.KEY_Down:
-            this.offset = 1; break;
+        case Clutter.KEY_Up: this.offset = -1; break;
+        case Clutter.KEY_Down: this.offset = 1; break;
         case Clutter.KEY_Left:
-        case Clutter.KEY_Page_Up:
-            this.offset = -this.page_size; break;
+        case Clutter.KEY_Page_Up: this.offset = -this.page_size; break;
         case Clutter.KEY_Right:
-        case Clutter.KEY_Page_Down:
-            this.offset = this.page_size; break;
+        case Clutter.KEY_Page_Down: this.offset = this.page_size; break;
         case Clutter.KEY_space:
-        case Clutter.KEY_Return:
-            this.candidate_clicked(null, this._cursor - this._start, 1, 0); break;
-        case Clutter.KEY_Delete:
-            this.delete_current(); break;
-        case Clutter.KEY_backslash:
-            this.merge_current(); break;
-        case Clutter.KEY_BackSpace:
-            this.preedit = this._preedit.slice(0, -1); break;
+        case Clutter.KEY_Return: this.candidateClicked(null, this._cursor - this._start, 1, 0); break;
+        case Clutter.KEY_Delete: this.deleteCurrent(); break;
+        case Clutter.KEY_backslash: this.mergeCurrent(); break;
+        case Clutter.KEY_BackSpace: this.preedit = this._preedit.slice(0, -1); break;
         default:
             if(keyval < 33 || keyval > 126) this.dispel();
-            else if(keyval > 47 && keyval < 58) this.select_at(keyval);
+            else if(keyval > 47 && keyval < 58) this.selectAt(keyval);
             else this.preedit = this._preedit + String.fromCharCode(keyval); break;
         }
     }
 
-    delete_current() {
+    deleteCurrent() {
         let index = ClipTable.findIndex(x => x[0] === this._lookup[this._cursor][0]);
         if(index === -1) return;
         ClipTable.splice(index, 1);
@@ -635,20 +645,20 @@ const IBusClipHistory = GObject.registerClass({
         this.cursor = this._cursor >= this._lookup.length ? Math.max(this._lookup.length - 1, 0) : this._cursor;
     }
 
-    merge_current() {
+    mergeCurrent() {
         let index = ClipTable.findIndex(x => x[0] === this._lookup[this._cursor][0]);
         if(index === -1 || index >= this._lookup.length - 1) return;
         this._lookup.splice(this._cursor, 1);
         let [clip] = ClipTable.splice(index, 1);
         let hays = ClipTable[index][2] + clip[2];
         let text = '%s %s'.format(ClipTable[index][0], clip[0]);
-        this._lookup[this._cursor] = ClipTable[index] = [text, prune(text), hays];
+        this._lookup[this._cursor] = ClipTable[index] = [text, compact(shrink(text)), hays];
         this.cursor = this._cursor;
     }
 
-    select_at(code) {
-        let index = INDICES.findIndex(x => x === String.fromCharCode(code));
-        index >= 0 && index < this._size ? this.candidate_clicked(null, index, 1, 0) : this.dispel();
+    selectAt(code) {
+        let index = Indices.findIndex(x => x === String.fromCharCode(code));
+        index >= 0 && index < this._size ? this.candidateClicked(null, index, 1, 0) : this.dispel();
     }
 
     set preedit(preedit) {
@@ -659,53 +669,60 @@ const IBusClipHistory = GObject.registerClass({
     }
 
     dispel() {
-        if(this._pad) this._pad.destroy(), delete this._pad;
-        if(this._ptr) this._ptr.destroy(), delete this._ptr;
+        if(this._pad) this._pad.destroy(), this._pad = null;
+        if(this._ptr) this._ptr.destroy(), this._ptr = null;
     }
 
     destroy() {
         this.dispel();
-        this.shortcut = false;
-        if(this._viewId) Main.overview.disconnect(this._viewId), delete this._viewId;
-        if(this._clipId) global.display.get_selection().disconnect(this._clipId), delete this._clipId;
+        this.shortcut = null;
+        Main.overview.disconnectObject(this);
+        global.display.get_selection().disconnectObject(this);
+        if(Meta.is_wayland_compositor()) clearTimeout(this._delayId);
     }
-});
+}
 
 const IBUS_TWEAKS = {
-    'font':   IBusFontSetting,
-    'pgbtn':  IBusPageButton,
-    'input':  IBusAutoSwitch,
-    'orien':  IBusOrientation,
-    'theme':  IBusThemeManager,
-    'update': UpdatesIndicator,
-    'clip':   IBusClipHistory,
+    font:   IBusFontSetting,
+    pgbtn:  IBusPageButton,
+    input:  IBusAutoSwitch,
+    orien:  IBusOrientation,
+    theme:  IBusThemeManager,
+    update: UpdatesIndicator,
+    clip:   IBusClipHistory,
 };
 
-const Extensions = GObject.registerClass({
-    Properties: {
-        'clip':   GObject.ParamSpec.boolean('clip', 'clip', 'clip', GObject.ParamFlags.WRITABLE, false),
-        'font':   GObject.ParamSpec.boolean('font', 'font', 'font', GObject.ParamFlags.WRITABLE, false),
-        'input':  GObject.ParamSpec.boolean('input', 'input', 'input', GObject.ParamFlags.WRITABLE, false),
-        'orien':  GObject.ParamSpec.boolean('orien', 'orien', 'orien', GObject.ParamFlags.WRITABLE, false),
-        'pgbtn':  GObject.ParamSpec.boolean('pgbtn', 'pgbtn', 'pgbtn', GObject.ParamFlags.WRITABLE, false),
-        'theme':  GObject.ParamSpec.boolean('theme', 'theme', 'theme', GObject.ParamFlags.WRITABLE, false),
-        'update': GObject.ParamSpec.boolean('update', 'update', 'update', GObject.ParamFlags.WRITABLE, false),
-    },
-}, class Extensions extends GObject.Object {
-    _init() {
-        super._init();
+class Extensions extends GObject.Object {
+    static {
+        GObject.registerClass({
+            Properties: {
+                clip:   genParam('boolean', 'clip', false),
+                font:   genParam('boolean', 'font', false),
+                input:  genParam('boolean', 'input', false),
+                orien:  genParam('boolean', 'orien', false),
+                pgbtn:  genParam('boolean', 'pgbtn', false),
+                theme:  genParam('boolean', 'theme', false),
+                update: genParam('boolean', 'update', false),
+            },
+        }, this);
+    }
+
+    constructor() {
+        super();
         this._tweaks = new Map();
         this._bindSettings();
     }
 
     _bindSettings() {
-        gsettings.bind(Fields.PAGEBUTTON,    this, 'pgbtn',  Gio.SettingsBindFlags.GET);
-        gsettings.bind(Fields.ENABLEORIEN,   this, 'orien',  Gio.SettingsBindFlags.GET);
-        gsettings.bind(Fields.AUTOSWITCH,    this, 'input',  Gio.SettingsBindFlags.GET);
-        gsettings.bind(Fields.USECUSTOMFONT, this, 'font',   Gio.SettingsBindFlags.GET);
-        gsettings.bind(Fields.ENABLEMSTHEME, this, 'theme',  Gio.SettingsBindFlags.GET);
-        gsettings.bind(Fields.ENABLEUPDATES, this, 'update', Gio.SettingsBindFlags.GET);
-        gsettings.bind(Fields.ENABLECLIP,    this, 'clip',   Gio.SettingsBindFlags.GET);
+        [
+            [Fields.PAGEBUTTON,    'pgbtn'],
+            [Fields.ENABLEORIEN,   'orien'],
+            [Fields.AUTOSWITCH,    'input'],
+            [Fields.USECUSTOMFONT, 'font'],
+            [Fields.ENABLEMSTHEME, 'theme'],
+            [Fields.ENABLEUPDATES, 'update'],
+            [Fields.ENABLECLIP,    'clip'],
+        ].forEach(([x, y, z]) => gsettings.bind(x, this, y, z ?? Gio.SettingsBindFlags.GET));
     }
 
     set clip(clip) {
@@ -751,22 +768,25 @@ const Extensions = GObject.registerClass({
     destroy() {
         for(let x in IBUS_TWEAKS) this[x] = false;
     }
-});
+}
 
-const Extension = class Extension {
-    constructor() {
+class Extension {
+    static {
         ExtensionUtils.initTranslations();
     }
 
     enable() {
+        tgsettings = new Gio.Settings({ schema: 'org.gnome.desktop.interface' });
+        ngsettings = new Gio.Settings({ schema: 'org.gnome.settings-daemon.plugins.color' });
+        gsettings = ExtensionUtils.getSettings();
         this._ext = new Extensions();
     }
 
     disable() {
         this._ext.destroy();
-        delete this._ext;
+        gsettings = ngsettings = tgsettings = this._ext = null;
     }
-};
+}
 
 function init() {
     return new Extension();
