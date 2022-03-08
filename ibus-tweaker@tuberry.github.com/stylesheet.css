@@ -61,32 +61,38 @@
  */
 
 
+.ibus-tweaker-candidate-page-button,
 .ibus-tweaker-candidate-popup-content {
     color: rgba(0, 0, 0, 1);
     background-color: rgba(249, 249, 249, 1);
 }
 
-.ibus-tweaker-candidate-page-button,
 .ibus-tweaker-candidate-box:selected {
     color: rgba(0, 0, 0, 1);
 }
 
-.ibus-tweaker-candidate-page-button:insensitive,
+.ibus-tweaker-candidate-page-button:insensitive {
+    color: rgba(0, 0, 0, 0.4);
+}
+
 .ibus-tweaker-candidate-box .ibus-tweaker-candidate-index {
     color: rgba(0, 0, 0, 0.6);
 }
 
+.night .ibus-tweaker-candidate-page-button,
 .night .ibus-tweaker-candidate-popup-content {
     color: rgba(255, 255, 255, 1);
     background-color: rgba(63, 63, 63, 1);
 }
 
-.night .ibus-tweaker-candidate-page-button,
 .night .ibus-tweaker-candidate-box:selected {
     color: rgba(255, 255, 255, 1);
 }
 
-.night .ibus-tweaker-candidate-page-button:insensitive,
+.night .ibus-tweaker-candidate-page-button:insensitive {
+    color: rgba(255, 255, 255, 0.4);
+}
+
 .night .ibus-tweaker-candidate-box .ibus-tweaker-candidate-index {
     color: rgba(255, 255, 255, 0.6);
 }
