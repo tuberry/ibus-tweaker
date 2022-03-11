@@ -474,7 +474,7 @@ class IBusClipPopup extends BoxPointer.BoxPointer {
     }
 
     set preedit(text) {
-        this._preeditText.set_text('%s%s'.format(_('Clipboard: '), text));
+        this._preeditText.set_text('%s%s'.format(_('📋：'), text));
     }
 
     set aux(numb) {
