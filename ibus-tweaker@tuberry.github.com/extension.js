@@ -26,16 +26,15 @@ const ASCIIs = ['en', 'A', '英'];
 const Unknown = { ON: 0, OFF: 1, DEFAULT: 2 };
 const Style = { AUTO: 0, LIGHT: 1, DARK: 2, SYSTEM: 3 };
 const Indices = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'];
-const TEXTCMD = 'pypinyin -s FIRST_LETTER -- %s'; // python-pinyin for Chinese search
 const compact = (s, d = [[/\n|\r/g, '\u21b5'], ['\t', '\u21e5']]) => d.length ? compact(s.replaceAll(...d.pop()), d) : s;
-const shrink = (t, m = 45) => t.length > m ? '%s\u2026%s'.format(t.substring(0, m >> 1), t.substring(t.length - (m >> 1), t.length)) : t;
-const promiseTo = p => p.then(scc => { return [scc]; }).catch(err => { return [undefined, err]; });
+const shrink = (t, m = 45) => t.length > m ? `${t.substring(0, m >> 1)}\u2026${t.substring(t.length - (m >> 1), t.length)}` : t;
+const promiseTo = p => p.then(scc => [scc]).catch(err => [undefined, err]);
 const genParam = (type, name, ...dflt) => GObject.ParamSpec[type](name, name, name, GObject.ParamFlags.READWRITE, ...dflt);
 
 Gio._promisify(Gio.Subprocess.prototype, 'communicate_utf8_async');
 
 async function processText(text) {
-    let [haystack] = await promiseTo(execute(TEXTCMD.format(GLib.shell_quote(text))));
+    let [haystack] = await promiseTo(execute(`pypinyin -s FIRST_LETTER -- ${GLib.shell_quote(text)}`));
 
     return [text, compact(shrink(text)), (haystack || text).replace(/[^A-Za-z]/g, '').toLowerCase()];
 }
@@ -184,15 +183,14 @@ class IBusFontSetting extends GObject.Object {
         let scale = 13 / 16; // the fonts-size difference between index and candidate
         let desc = Pango.FontDescription.from_string(fontname);
         let getWeight = () => { try { return desc.get_weight(); } catch(e) { return parseInt(e.message); } }; // workaround for Pango.Weight enumeration exception (eg: 290)
-        CandidatePopup.set_style('font-weight: %d; font-family: "%s"; font-size: %dpt; font-style: %s;'.format(
-            getWeight(),
-            desc.get_family(),
-            (desc.get_size() / Pango.SCALE) * scale,
-            Object.keys(Pango.Style)[desc.get_style()].toLowerCase()
-        ));
+        CandidatePopup.set_style(`font-weight: ${getWeight()};
+                                 font-family: "${desc.get_family()}";
+                                 font-size: ${(desc.get_size() / Pango.SCALE) * scale}pt;
+                                 font-style: ${Object.keys(Pango.Style)[desc.get_style()].toLowerCase()};`
+        );
         CandidateArea._candidateBoxes.forEach(x => {
-            x._candidateLabel.set_style('font-size: %dpt;'.format(desc.get_size() / Pango.SCALE));
-            x._indexLabel.set_style('padding: %fem 0.25em 0 0;'.format((1 - scale) * 2));
+            x._candidateLabel.set_style(`font-size: ${desc.get_size() / Pango.SCALE}pt;`);
+            x._indexLabel.set_style(`padding: ${(1 - scale) * 2}em 0.25em 0 0;`);
         });
     }
 
@@ -310,18 +308,18 @@ class IBusThemeManager extends GObject.Object {
         if((this._dark = dark)) {
             CandidatePopup.remove_style_class_name(this._color);
             CandidatePopup.add_style_class_name('night');
-            CandidatePopup.add_style_class_name('night-%s'.format(this._color));
+            CandidatePopup.add_style_class_name(`night-${this._color}`);
         } else {
             CandidatePopup.remove_style_class_name('night');
-            CandidatePopup.remove_style_class_name('night-%s'.format(this._color));
+            CandidatePopup.remove_style_class_name(`night-${this._color}`);
             CandidatePopup.add_style_class_name(this._color);
         }
     }
 
     toggleColor() {
         if(this._dark) {
-            if(this._prev_color) CandidatePopup.remove_style_class_name('night-%s'.format(this._prev_color));
-            CandidatePopup.add_style_class_name('night-%s'.format(this._color));
+            if(this._prev_color) CandidatePopup.remove_style_class_name(`night-${this._prev_color}`);
+            CandidatePopup.add_style_class_name(`night-${this._color}`);
         } else {
             if(this._prev_color) CandidatePopup.remove_style_class_name(this._prev_color);
             CandidatePopup.add_style_class_name(this._color);
@@ -343,7 +341,7 @@ class IBusThemeManager extends GObject.Object {
     _restoreStyle() {
         if(this.style) {
             CandidatePopup.remove_style_class_name('night');
-            CandidatePopup.remove_style_class_name('night-%s'.format(this._color));
+            CandidatePopup.remove_style_class_name(`night-${this._color}`);
         } else {
             CandidatePopup.remove_style_class_name(this._color);
         }
@@ -381,8 +379,8 @@ class UpdatesIndicator extends GObject.Object {
 
     _checkUpdates() {
         execute(this.updatescmd)
-            .then(scc => { this._showUpdates(scc ? scc.split(/\r\n|\r|\n/).length : 0); })
-            .catch(() => { this._showUpdates(0); });
+            .then(scc => this._showUpdates(scc ? scc.split(/\r\n|\r|\n/).length : 0))
+            .catch(() => this._showUpdates(0));
     }
 
     _showUpdates(count) {
@@ -474,7 +472,7 @@ class IBusClipPopup extends BoxPointer.BoxPointer {
     }
 
     set preedit(text) {
-        this._preeditText.set_text('%s%s'.format(_('📋：'), text));
+        this._preeditText.set_text(`${_('📋：')}${text}`);
     }
 
     set aux(numb) {
@@ -527,11 +525,11 @@ class IBusClipHistory extends GObject.Object {
         if(this._ptr) return;
         this._ptr = new IBusClipPopup();
         this._ptr.connectObject('captured-event', this.onCapturedEvent.bind(this), this);
-        this._ptr._area.connectObject('cursor-up', () => { this.offset = -1; },
-            'cursor-down', () => { this.offset = 1; },
-            'next-page', () => { this.offset = this.page_size; },
+        this._ptr._area.connectObject('cursor-up', () => (this.offset = -1),
+            'cursor-down', () => (this.offset = 1),
+            'next-page', () => (this.offset = this.page_size),
             'candidate-clicked', this.candidateClicked.bind(this),
-            'previous-page', () => { this.offset = -this.page_size; }, this);
+            'previous-page', () => (this.offset = -this.page_size), this);
     }
 
     onClipboardChanged(_sel, type, _src) {
@@ -549,7 +547,7 @@ class IBusClipHistory extends GObject.Object {
     }
 
     onCapturedEvent(actor, event) {
-        if(event.type() == Clutter.EventType.KEY_PRESS) {
+        if(event.type() === Clutter.EventType.KEY_PRESS) {
             let keyval = event.get_key_symbol();
             switch(keyval) {
             case Clutter.KEY_Up: this.offset = -1; break;
@@ -569,8 +567,8 @@ class IBusClipHistory extends GObject.Object {
                 else this.preedit = this._preedit + String.fromCharCode(keyval); break;
             }
             return Clutter.EVENT_STOP;
-        } else if((event.type() === Clutter.EventType.BUTTON_PRESS || event.type() === Clutter.EventType.TOUCH_BEGIN)
-                  && !actor.contains(global.stage.get_event_actor(event))) {
+        } else if((event.type() === Clutter.EventType.BUTTON_PRESS || event.type() === Clutter.EventType.TOUCH_BEGIN) &&
+                  !actor.contains(global.stage.get_event_actor(event))) {
             this.dispel();
             return Clutter.EVENT_STOP;
         }
@@ -624,7 +622,7 @@ class IBusClipHistory extends GObject.Object {
         if(!text) return;
         if(Meta.is_wayland_compositor()) {
             clearTimeout(this._delayId);
-            this._delayId = setTimeout(() => { IBusManager._panelService?.commit_text(IBus.Text.new_from_string(text)); }, 30);
+            this._delayId = setTimeout(() => IBusManager._panelService?.commit_text(IBus.Text.new_from_string(text)), 30);
         } else {
             IBusManager._panelService?.commit_text(IBus.Text.new_from_string(text));
         }
@@ -644,7 +642,7 @@ class IBusClipHistory extends GObject.Object {
         this._lookup.splice(this._cursor, 1);
         let [clip] = ClipTable.splice(index, 1);
         let hays = ClipTable[index][2] + clip[2];
-        let text = '%s %s'.format(ClipTable[index][0], clip[0]);
+        let text = `${ClipTable[index][0]} ${clip[0]}`;
         this._lookup[this._cursor] = ClipTable[index] = [text, compact(shrink(text)), hays];
         this.cursor = this._cursor;
     }
