@@ -16,10 +16,9 @@ const CandidatePopup = IBusManager._candidatePopup;
 const CandidateArea = CandidatePopup._candidateArea;
 const ExtensionUtils = imports.misc.extensionUtils;
 const Me = ExtensionUtils.getCurrentExtension();
-const Fields = Me.imports.fields.Fields;
+const { Fields } = Me.imports.fields;
 const _ = ExtensionUtils.gettext;
 const noop = () => {};
-let [gsettings, ngsettings, tgsettings] = Array(3).fill(null);
 let ClipTable = [];
 
 const ASCIIs = ['en', 'A', '英'];
@@ -29,7 +28,6 @@ const Indices = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'];
 const compact = (s, d = [[/\n|\r/g, '\u21b5'], ['\t', '\u21e5']]) => d.length ? compact(s.replaceAll(...d.pop()), d) : s;
 const shrink = (t, m = 45) => t.length > m ? `${t.substring(0, m >> 1)}\u2026${t.substring(t.length - (m >> 1), t.length)}` : t;
 const promiseTo = p => p.then(scc => [scc]).catch(err => [undefined, err]);
-const genParam = (type, name, ...dflt) => GObject.ParamSpec[type](name, name, name, GObject.ParamFlags.READWRITE, ...dflt);
 
 Gio._promisify(Gio.Subprocess.prototype, 'communicate_utf8_async');
 
@@ -87,11 +85,9 @@ const TempPopup = {
         _buttonBox: { style_class: 'candidate-page-button-box' },
         _previousButton: {
             style_class: 'candidate-page-button candidate-page-button-previous button',
-            child: { style_class: 'candidate-page-button-icon' },
         },
         _nextButton: {
             style_class: 'candidate-page-button candidate-page-button-next button',
-            child: { style_class: 'candidate-page-button-icon' },
         },
     },
     bin: {
@@ -101,21 +97,53 @@ const TempPopup = {
     _auxText: { style_class: 'candidate-popup-text' },
 };
 
-class IBusAutoSwitch extends GObject.Object {
-    static {
-        GObject.registerClass({
-            Properties: {
-                unknown:  genParam('uint', 'unknown', 0, 2, 2),
-                shortcut: genParam('boolean', 'shortcut', false),
-            },
-        }, this);
+class Field {
+    constructor(prop, gset, obj, unbind) {
+        this.gset = typeof gset === 'string' ? new Gio.Settings({ schema: gset }) : gset;
+        this.prop = prop;
+        if(!unbind) this.bind(obj);
     }
 
+    _get(x) {
+        return this.gset[`get_${this.prop[x][1]}`](this.prop[x][0]);
+    }
+
+    _set(x, y) {
+        this.gset[`set_${this.prop[x][1]}`](this.prop[x][0], y);
+    }
+
+    bind(a) {
+        let fs = Object.entries(this.prop);
+        fs.forEach(([x]) => { a[x] = this._get(x); });
+        this.gset.connectObject(...fs.flatMap(([x, [y]]) => [`changed::${y}`, () => { a[x] = this._get(x); }]), a);
+    }
+
+    bindF(a, f) {
+        let fs = Object.entries(this.prop);
+        fs.forEach(([x]) => f(a, x));
+        this.gset.connectObject(...fs.flatMap(([x, [y]]) => [`changed::${y}`, () => f(a, x)]), a);
+    }
+
+    unbind(a) {
+        this.gset.disconnectObject(a);
+    }
+}
+
+class IBusAutoSwitch {
     constructor() {
-        super();
         this._bindSettings();
         global.display.connectObject('notify::focus-window', this._onWindowChanged.bind(this), this);
         Main.overview.connectObject('hidden', this._onWindowChanged.bind(this), 'showing', this._onWindowChanged.bind(this), this);
+    }
+
+    _bindSettings() {
+        this.gset = ExtensionUtils.getSettings();
+        this._field = new Field({
+            unknown:   [Fields.UNKNOWNMODE,  'uint'],
+            shortcut:  [Fields.ENABLEDIALOG, 'boolean'],
+            inputlist: [Fields.INPUTLIST,    'value'],
+        }, this.gset, this);
+        this._states = new Map(Object.entries(this.inputlist.deep_unpack()));
     }
 
     get _state() {
@@ -141,7 +169,7 @@ class IBusAutoSwitch extends GObject.Object {
 
     set shortcut(shortcut) {
         this._shortId && Main.wm.removeKeybinding(Fields.RUNSHORTCUT);
-        this._shortId = shortcut && Main.wm.addKeybinding(Fields.RUNSHORTCUT, gsettings, Meta.KeyBindingFlags.NONE, Shell.ActionMode.ALL, () => {
+        this._shortId = shortcut && Main.wm.addKeybinding(Fields.RUNSHORTCUT, this.gset, Meta.KeyBindingFlags.NONE, Shell.ActionMode.ALL, () => {
             if(!this._state) IBusManager.activateProperty('InputMode', IBus.PropState.CHECKED);
             Main.openRunDialog();
         });
@@ -151,32 +179,18 @@ class IBusAutoSwitch extends GObject.Object {
         if(this._toggle && IBusManager._panelService) IBusManager.activateProperty('InputMode', IBus.PropState.CHECKED);
     }
 
-    _bindSettings() {
-        [[Fields.UNKNOWNMODE, 'unknown'], [Fields.ENABLEDIALOG, 'shortcut']]
-            .forEach(([x, y, z]) => gsettings.bind(x, this, y, z ?? Gio.SettingsBindFlags.GET));
-        this._states = new Map(Object.entries(gsettings.get_value(Fields.INPUTLIST).deep_unpack()));
-    }
-
     destroy() {
+        this._field.unbind(this);
         this.shortcut = null;
         global.display.disconnectObject(this);
         Main.overview.disconnectObject(this);
-        gsettings.set_value(Fields.INPUTLIST, new GLib.Variant('a{sb}', Object.fromEntries(this._states)));
+        this._field._set('inputlist', new GLib.Variant('a{sb}', Object.fromEntries(this._states)));
     }
 }
 
-class IBusFontSetting extends GObject.Object {
-    static {
-        GObject.registerClass({
-            Properties: {
-                fontname: genParam('string', 'fontname', 'Sans 16'),
-            },
-        }, this);
-    }
-
+class IBusFontSetting {
     constructor() {
-        super();
-        gsettings.bind(Fields.CUSTOMFONT, this, 'fontname', Gio.SettingsBindFlags.GET);
+        this._field = new Field({ fontname: [Fields.CUSTOMFONT, 'string'] }, ExtensionUtils.getSettings(), this);
     }
 
     set fontname(fontname) {
@@ -195,6 +209,7 @@ class IBusFontSetting extends GObject.Object {
     }
 
     destroy() {
+        this._field.unbind(this);
         CandidatePopup.set_style('');
         CandidateArea._candidateBoxes.forEach(x => {
             x._candidateLabel.set_style('');
@@ -203,20 +218,11 @@ class IBusFontSetting extends GObject.Object {
     }
 }
 
-class IBusOrientation extends GObject.Object {
-    static {
-        GObject.registerClass({
-            Properties: {
-                orientation: genParam('uint', 'orientation', 0, 1, 1),
-            },
-        }, this);
-    }
-
+class IBusOrientation {
     constructor() {
-        super();
         this._originalSetOrientation = CandidateArea.setOrientation.bind(CandidateArea);
         CandidateArea.setOrientation = noop;
-        gsettings.bind(Fields.ORIENTATION, this, 'orientation', Gio.SettingsBindFlags.GET);
+        this._field = new Field({ orientation: [Fields.ORIENTATION, 'uint'] }, ExtensionUtils.getSettings(), this);
     }
 
     set orientation(orientation) {
@@ -224,17 +230,13 @@ class IBusOrientation extends GObject.Object {
     }
 
     destroy() {
+        this._field.unbind(this);
         CandidateArea.setOrientation = this._originalSetOrientation;
     }
 }
 
-class IBusPageButton extends GObject.Object {
-    static {
-        GObject.registerClass(this);
-    }
-
+class IBusPageButton {
     constructor() {
-        super();
         CandidateArea._buttonBox.set_style('border-width: 0;');
         CandidateArea._previousButton.hide();
         CandidateArea._nextButton.hide();
@@ -247,30 +249,17 @@ class IBusPageButton extends GObject.Object {
     }
 }
 
-class IBusThemeManager extends GObject.Object {
-    static {
-        GObject.registerClass({
-            Properties: {
-                color:  genParam('uint', 'color', 0, 7, 3),
-                style:  genParam('uint', 'style', 0, 3, 0),
-                night:  genParam('boolean', 'night', false),
-                scheme: genParam('string', 'scheme', 'default'),
-            },
-        }, this);
-    }
-
+class IBusThemeManager {
     constructor() {
-        super();
         this._replaceStyle();
         this._bindSettings();
         this._onProxyChanged();
     }
 
     _bindSettings() {
-        tgsettings.bind('color-scheme', this, 'scheme', Gio.SettingsBindFlags.GET);
-        ngsettings.bind('night-light-enabled', this, 'night', Gio.SettingsBindFlags.GET);
-        [[Fields.MSTHEMESTYLE, 'style'], [Fields.MSTHEMECOLOR, 'color']]
-            .forEach(([x, y, z]) => gsettings.bind(x, this, y, z ?? Gio.SettingsBindFlags.GET));
+        this._tfield = new Field({ scheme: ['color-scheme', 'string'] }, 'org.gnome.desktop.interface', this);
+        this._nfield = new Field({ night: ['night-light-enabled', 'boolean'] }, 'org.gnome.settings-daemon.plugins.color', this);
+        this._field = new Field({  color: [Fields.MSTHEMECOLOR, 'uint'], style: [Fields.MSTHEMESTYLE, 'uint'] }, ExtensionUtils.getSettings(), this);
         LightProxy.connectObject('g-properties-changed', this._onProxyChanged.bind(this), this);
     }
 
@@ -349,23 +338,14 @@ class IBusThemeManager extends GObject.Object {
     }
 
     destroy() {
-        this._restoreStyle();
+        ['_field', '_tfield', '_nfield'].forEach(x => this[x].unbind(this));
         LightProxy.disconnectObject(this);
+        this._restoreStyle();
     }
 }
 
-class UpdatesIndicator extends GObject.Object {
-    static {
-        GObject.registerClass({
-            Properties: {
-                updatescmd: genParam('string', 'updatescmd', 'checkupdates'),
-                updatesdir: genParam('string', 'updatesdir', '/var/lib/pacman/local'),
-            },
-        }, this);
-    }
-
+class UpdatesIndicator {
     constructor() {
-        super();
         this._bindSettings();
         this._addIndicator();
         this._checkUpdates();
@@ -373,8 +353,10 @@ class UpdatesIndicator extends GObject.Object {
     }
 
     _bindSettings() {
-        [[Fields.UPDATESDIR, 'updatesdir'], [Fields.CHECKUPDATES, 'updatescmd']]
-            .forEach(([x, y, z]) => gsettings.bind(x, this, y, z ?? Gio.SettingsBindFlags.GET));
+        this._field = new Field({
+            updatesdir: [Fields.UPDATESDIR,   'string'],
+            updatescmd: [Fields.CHECKUPDATES, 'string'],
+        }, ExtensionUtils.getSettings(), this);
     }
 
     _checkUpdates() {
@@ -417,6 +399,7 @@ class UpdatesIndicator extends GObject.Object {
     }
 
     destroy() {
+        this._field.unbind(this);
         clearTimeout(this._fileMonitorId);
         clearInterval(this._checkUpdatesId);
         this._checkUpdated();
@@ -430,18 +413,18 @@ class IBusClipPopup extends BoxPointer.BoxPointer {
         GObject.registerClass(this);
     }
 
-    constructor() {
+    constructor(page_btn) {
         super(St.Side.TOP);
         this.visible = false;
         this.reactive = true;
         this.style_class = 'candidate-popup-boxpointer';
-        this._buildWidgets();
+        this._buildWidgets(page_btn);
         Main.layoutManager.addChrome(this);
         global.focus_manager.add_group(this);
         global.stage.set_key_focus(this);
     }
 
-    _buildWidgets() {
+    _buildWidgets(page_btn) {
         let box = new St.BoxLayout({ style_class: 'candidate-popup-content', vertical: true });
         let hbox = new St.BoxLayout();
         this._preeditText = new St.Label({ style_class: 'candidate-popup-text', visible: true, x_expand: true });
@@ -452,10 +435,10 @@ class IBusClipPopup extends BoxPointer.BoxPointer {
         this._candidateArea.setOrientation(IBus.Orientation.VERTICAL);
         box.add(this._candidateArea);
         this.bin.set_child(box);
-        this._replaceStyle();
+        this._replaceStyle(page_btn);
     }
 
-    _replaceStyle() {
+    _replaceStyle(page_btn) {
         addStyleClass(TempPopup, CandidatePopup, this);
         this.set_style(CandidatePopup.get_style());
         let [box] = CandidatePopup._candidateArea._candidateBoxes;
@@ -465,7 +448,7 @@ class IBusClipPopup extends BoxPointer.BoxPointer {
             x._indexLabel.set_style(i_style);
             x._candidateLabel.set_style(c_style);
         });
-        if(!gsettings.get_boolean(Fields.PAGEBUTTON)) return;
+        if(!page_btn) return;
         this._candidateArea._buttonBox.set_style('border-width: 0;');
         this._candidateArea._nextButton.hide();
         this._candidateArea._previousButton.hide();
@@ -498,19 +481,13 @@ class IBusClipPopup extends BoxPointer.BoxPointer {
     }
 }
 
-class IBusClipHistory extends GObject.Object {
-    static {
-        GObject.registerClass({
-            Properties: {
-                page_size: genParam('uint', 'page_size', 4, 10, 5),
-                shortcut:  genParam('boolean', 'shortcut', false),
-            },
-        }, this);
-    }
-
+class IBusClipHistory {
     constructor() {
-        super();
-        gsettings.bind(Fields.CLIPPAGESIZE, this, 'page_size', Gio.SettingsBindFlags.GET);
+        this.gset = ExtensionUtils.getSettings();
+        this._field = new Field({
+            page_size: [Fields.CLIPPAGESIZE, 'uint'],
+            page_btn:  [Fields.PAGEBUTTON,   'boolean'],
+        }, this.gset, this);
         Main.overview.connectObject('showing',  this.dispel.bind(this), this);
         global.display.get_selection().connectObject('owner-changed', this.onClipboardChanged.bind(this), this);
         this.shortcut = true;
@@ -518,12 +495,12 @@ class IBusClipHistory extends GObject.Object {
 
     set shortcut(shortcut) {
         this._shortId && Main.wm.removeKeybinding(Fields.CLIPHISTCUT);
-        this._shortId = shortcut && Main.wm.addKeybinding(Fields.CLIPHISTCUT, gsettings, Meta.KeyBindingFlags.NONE, Shell.ActionMode.ALL, this.showLookupTable.bind(this));
+        this._shortId = shortcut && Main.wm.addKeybinding(Fields.CLIPHISTCUT, this.gset, Meta.KeyBindingFlags.NONE, Shell.ActionMode.ALL, this.showLookupTable.bind(this));
     }
 
     summon() {
         if(this._ptr) return;
-        this._ptr = new IBusClipPopup();
+        this._ptr = new IBusClipPopup(this.page_btn);
         this._ptr.connectObject('captured-event', this.onCapturedEvent.bind(this), this);
         this._ptr._area.connectObject('cursor-up', () => (this.offset = -1),
             'cursor-down', () => (this.offset = 1),
@@ -550,15 +527,15 @@ class IBusClipHistory extends GObject.Object {
         if(event.type() === Clutter.EventType.KEY_PRESS) {
             let keyval = event.get_key_symbol();
             switch(keyval) {
-            case Clutter.KEY_Up: this.offset = -1; break;
-            case Clutter.KEY_Down: this.offset = 1; break;
+            case Clutter.KEY_Up:        this.offset = -1; break;
+            case Clutter.KEY_Down:      this.offset = 1; break;
             case Clutter.KEY_Left:
-            case Clutter.KEY_Page_Up: this.offset = -this.page_size; break;
+            case Clutter.KEY_Page_Up:   this.offset = -this.page_size; break;
             case Clutter.KEY_Right:
             case Clutter.KEY_Page_Down: this.offset = this.page_size; break;
             case Clutter.KEY_space:
-            case Clutter.KEY_Return: this.candidateClicked(null, this._cursor - this._start, 1, 0); break;
-            case Clutter.KEY_Delete: this.deleteCurrent(); break;
+            case Clutter.KEY_Return:    this.candidateClicked(null, this._cursor - this._start, 1, 0); break;
+            case Clutter.KEY_Delete:    this.deleteCurrent(); break;
             case Clutter.KEY_backslash: this.mergeCurrent(); break;
             case Clutter.KEY_BackSpace: this.preedit = this._preedit.slice(0, -1); break;
             default:
@@ -664,6 +641,7 @@ class IBusClipHistory extends GObject.Object {
     }
 
     destroy() {
+        this._field.unbind(this);
         this.dispel();
         this.shortcut = null;
         Main.overview.disconnectObject(this);
@@ -672,91 +650,38 @@ class IBusClipHistory extends GObject.Object {
     }
 }
 
-const IBUS_TWEAKS = {
-    font:   IBusFontSetting,
-    pgbtn:  IBusPageButton,
-    input:  IBusAutoSwitch,
-    orien:  IBusOrientation,
-    theme:  IBusThemeManager,
-    update: UpdatesIndicator,
-    clip:   IBusClipHistory,
-};
-
-class Extensions extends GObject.Object {
-    static {
-        GObject.registerClass({
-            Properties: {
-                clip:   genParam('boolean', 'clip', false),
-                font:   genParam('boolean', 'font', false),
-                input:  genParam('boolean', 'input', false),
-                orien:  genParam('boolean', 'orien', false),
-                pgbtn:  genParam('boolean', 'pgbtn', false),
-                theme:  genParam('boolean', 'theme', false),
-                update: genParam('boolean', 'update', false),
-            },
-        }, this);
-    }
-
+class Extensions {
     constructor() {
-        super();
         this._tweaks = new Map();
         this._bindSettings();
     }
 
     _bindSettings() {
-        [
-            [Fields.PAGEBUTTON,    'pgbtn'],
-            [Fields.ENABLEORIEN,   'orien'],
-            [Fields.AUTOSWITCH,    'input'],
-            [Fields.USECUSTOMFONT, 'font'],
-            [Fields.ENABLEMSTHEME, 'theme'],
-            [Fields.ENABLEUPDATES, 'update'],
-            [Fields.ENABLECLIP,    'clip'],
-        ].forEach(([x, y, z]) => gsettings.bind(x, this, y, z ?? Gio.SettingsBindFlags.GET));
-    }
-
-    set clip(clip) {
-        this.tweaks = { clip };
-    }
-
-    set pgbtn(pgbtn) {
-        this.tweaks = { pgbtn };
-    }
-
-    set input(input) {
-        this.tweaks = { input };
-    }
-
-    set font(font) {
-        this.tweaks = { font };
-    }
-
-    set orien(orien) {
-        this.tweaks = { orien };
-    }
-
-    set theme(theme) {
-        this.tweaks = { theme };
-    }
-
-    set update(update) {
-        this.tweaks = { update };
-    }
-
-    set tweaks(tweaks) {
-        let [prop, enable] = Object.entries(tweaks)[0];
-        if(enable) {
-            if(this._tweaks.get(prop)) return;
-            this._tweaks.set(prop, new IBUS_TWEAKS[prop]());
-        } else {
-            if(!this._tweaks.get(prop)) return;
-            this._tweaks.get(prop).destroy();
-            this._tweaks.delete(prop);
-        }
+        this._field = new Field({
+            clip:   [Fields.ENABLECLIP,    'boolean', IBusClipHistory],
+            font:   [Fields.USECUSTOMFONT, 'boolean', IBusFontSetting],
+            input:  [Fields.AUTOSWITCH,    'boolean', IBusAutoSwitch],
+            orien:  [Fields.ENABLEORIEN,   'boolean', IBusOrientation],
+            pgbtn:  [Fields.PAGEBUTTON,    'boolean', IBusPageButton],
+            theme:  [Fields.ENABLEMSTHEME, 'boolean', IBusThemeManager],
+            update: [Fields.ENABLEUPDATES, 'boolean', UpdatesIndicator],
+        }, ExtensionUtils.getSettings(), this, true);
+        this._field.bindF(this, (x, y) => {
+            if(x._field._get(y)) {
+                if(x._tweaks.get(y)) return;
+                x._tweaks.set(y, new this._field.prop[y][2]());
+            } else {
+                if(!x._tweaks.get(y)) return;
+                x._tweaks.get(y).destroy();
+                x._tweaks.delete(y);
+            }
+        });
     }
 
     destroy() {
-        for(let x in IBUS_TWEAKS) this[x] = false;
+        this._field.unbind(this);
+        this._tweaks.forEach(v => v.destroy());
+        this._tweaks.clear();
     }
 }
 
@@ -766,19 +691,15 @@ class Extension {
     }
 
     enable() {
-        tgsettings = new Gio.Settings({ schema: 'org.gnome.desktop.interface' });
-        ngsettings = new Gio.Settings({ schema: 'org.gnome.settings-daemon.plugins.color' });
-        gsettings = ExtensionUtils.getSettings();
         this._ext = new Extensions();
     }
 
     disable() {
         this._ext.destroy();
-        gsettings = ngsettings = tgsettings = this._ext = null;
+        this._ext = null;
     }
 }
 
 function init() {
     return new Extension();
 }
-

@@ -38,6 +38,10 @@
     padding: 0;
 }
 
+.ibus-tweaker-candidate-page-button StIcon {
+    icon-size: 1.45em;
+}
+
 .ibus-tweaker-candidate-page-button-previous {
     border-right-width: 0;
     border-radius: 0.2em;
@@ -45,10 +49,6 @@
 
 .ibus-tweaker-candidate-page-button-next {
     border-radius: 0.2em;
-}
-
-.ibus-tweaker-candidate-page-button-icon {
-    icon-size: 1.45em;
 }
 
 .ibus-tweaker-candidate-popup-boxpointer {
