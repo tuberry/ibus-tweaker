@@ -597,12 +597,8 @@ class IBusClipHistory {
     commitAt(index) {
         let [text] = this._lookup[this._start + index] || [undefined];
         if(!text) return;
-        if(Meta.is_wayland_compositor()) {
-            clearTimeout(this._delayId);
-            this._delayId = setTimeout(() => IBusManager._panelService?.commit_text(IBus.Text.new_from_string(text)), 30);
-        } else {
-            IBusManager._panelService?.commit_text(IBus.Text.new_from_string(text));
-        }
+        clearTimeout(this._delayId);
+        this._delayId = setTimeout(() => IBusManager._panelService?.commit_text(IBus.Text.new_from_string(text)), 30);
     }
 
     deleteCurrent() {
@@ -644,9 +640,9 @@ class IBusClipHistory {
         this._field.unbind(this);
         this.dispel();
         this.shortcut = null;
+        clearTimeout(this._delayId);
         Main.overview.disconnectObject(this);
         global.display.get_selection().disconnectObject(this);
-        if(Meta.is_wayland_compositor()) clearTimeout(this._delayId);
     }
 }
 
