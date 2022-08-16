@@ -8,7 +8,6 @@ const { Adw, Gio, Gtk, GObject } = imports.gi;
 const ExtensionUtils = imports.misc.extensionUtils;
 const Me = ExtensionUtils.getCurrentExtension();
 const _ = ExtensionUtils.gettext;
-const gsettings = ExtensionUtils.getSettings();
 const { Fields } = Me.imports.fields;
 const UI = Me.imports.ui;
 
@@ -32,6 +31,7 @@ class IBusTweakerPrefs extends Adw.PreferencesGroup {
     }
 
     _buildWidgets() {
+        let gsettings = ExtensionUtils.getSettings();
         this._field_clip_history = new UI.Short(gsettings, Fields.CLIPHISTCUT);
         this._field_run_dialog   = new UI.Short(gsettings, Fields.RUNSHORTCUT);
         this._field = {
@@ -43,11 +43,11 @@ class IBusTweakerPrefs extends Adw.PreferencesGroup {
             ENABLEORIEN:   ['active',   new Gtk.CheckButton()],
             PAGEBUTTON:    ['active',   new Gtk.CheckButton()],
             CLIPPAGESIZE:  ['value',    new UI.Spin(4, 10, 1, _('Page size'))],
-            ORIENTATION:   ['selected', new UI.Drop(_('Vertical'), _('Horizontal'))],
-            UNKNOWNMODE:   ['selected', new UI.Drop(_('On'), _('Off'), _('Default'))],
+            ORIENTATION:   ['selected', new UI.Drop([_('Vertical'), _('Horizontal')])],
+            UNKNOWNMODE:   ['selected', new UI.Drop([_('On'), _('Off'), _('Default')])],
             CUSTOMFONT:    ['font',     new Gtk.FontButton({ valign: Gtk.Align.CENTER })],
-            MSTHEMESTYLE:  ['selected', new UI.Drop(_('Auto'), _('Light'), _('Dark'), _('System'))],
-            MSTHEMECOLOR:  ['selected', new UI.Drop(_('Red'), _('Green'), _('Orange'), _('Blue'), _('Purple'), _('Turquoise'), _('Grey'))],
+            MSTHEMESTYLE:  ['selected', new UI.Drop([_('Auto'), _('Light'), _('Dark'), _('System')])],
+            MSTHEMECOLOR:  ['selected', new UI.Drop([_('Red'), _('Green'), _('Orange'), _('Blue'), _('Purple'), _('Turquoise'), _('Grey')])],
         };
         Object.entries(this._field).forEach(([x, [y, z]]) => gsettings.bind(Fields[x], z, y, Gio.SettingsBindFlags.DEFAULT));
         this._field.AUTOSWITCH[1].bind_property('active', this._field.ENABLEDIALOG[1], 'sensitive', GObject.BindingFlags.DEFAULT);

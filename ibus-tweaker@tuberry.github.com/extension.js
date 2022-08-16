@@ -11,7 +11,7 @@ const IBusManager = imports.misc.ibusManager.getIBusManager();
 const InputScMgr = imports.ui.status.keyboard.getInputSourceManager();
 const { Shell, Clutter, Gio, GLib, Meta, IBus, Pango, St, GObject } = imports.gi;
 
-const LightProxy = Main.panel.statusArea.aggregateMenu._nightLight._proxy;
+const LightProxy = Main.panel.statusArea.quickSettings._nightLight._proxy;
 const CandidatePopup = IBusManager._candidatePopup;
 const CandidateArea = CandidatePopup._candidateArea;
 const ExtensionUtils = imports.misc.extensionUtils;
@@ -19,7 +19,7 @@ const Me = ExtensionUtils.getCurrentExtension();
 const { Fields } = Me.imports.fields;
 const _ = ExtensionUtils.gettext;
 const noop = () => {};
-let ClipTable = [];
+const ClipTable = [];
 
 const ASCIIs = ['en', 'A', '英'];
 const Unknown = { ON: 0, OFF: 1, DEFAULT: 2 };
