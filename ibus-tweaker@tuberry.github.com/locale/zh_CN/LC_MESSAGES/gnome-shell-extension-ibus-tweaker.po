@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: gnome-shell-extension-ibus-tweaker 35\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2022-08-06 19:09+0800\n"
+"POT-Creation-Date: 2022-08-18 15:56+0800\n"
 "PO-Revision-Date: 2021-08-18 14:09+0800\n"
 "Last-Translator: Automatically generated\n"
 "Language-Team: none\n"
@@ -17,16 +17,16 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 
-#: extension.js:458
+#: extension.js:453
 msgid "📋："
 msgstr "📋："
 
-#: extension.js:462
+#: extension.js:457
 #, javascript-format
 msgid "%dC"
 msgstr "%d字"
 
-#: extension.js:576
+#: extension.js:571
 msgid "Empty history."
 msgstr "空空如也。"
 
@@ -122,10 +122,6 @@ msgstr "仿微软主题"
 msgid "Clipboard history"
 msgstr "剪贴板历史"
 
-#: prefs.js:68
-msgid "Depends on python-pinyin for Chinese search"
-msgstr "中文搜索依赖于 python-pinyin"
-
 #: prefs.js:69
 msgid "Use custom font"
 msgstr "自定义字体"
@@ -137,9 +133,3 @@ msgstr "清除"
 #: ui.js:258
 msgid "Click or press ENTER to commit changes"
 msgstr "单击或按回车提交更改"
-
-#~ msgid "Clipboard: "
-#~ msgstr "📋："
-
-#~ msgid "C"
-#~ msgstr "字"

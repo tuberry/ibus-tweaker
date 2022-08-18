@@ -17,25 +17,20 @@ const CandidateArea = CandidatePopup._candidateArea;
 const ExtensionUtils = imports.misc.extensionUtils;
 const Me = ExtensionUtils.getCurrentExtension();
 const { Fields } = Me.imports.fields;
+const Initial = Me.imports.initial;
 const _ = ExtensionUtils.gettext;
-const noop = () => {};
-const ClipTable = [];
 
+const ClipTable = [];
 const ASCIIs = ['en', 'A', '英'];
 const Unknown = { ON: 0, OFF: 1, DEFAULT: 2 };
 const Style = { AUTO: 0, LIGHT: 1, DARK: 2, SYSTEM: 3 };
 const Indices = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'];
+
+const noop = () => {};
 const compact = (s, d = [[/\n|\r/g, '\u21b5'], ['\t', '\u21e5']]) => d.length ? compact(s.replaceAll(...d.pop()), d) : s;
 const shrink = (t, m = 45) => t.length > m ? `${t.substring(0, m >> 1)}\u2026${t.substring(t.length - (m >> 1), t.length)}` : t;
-const promiseTo = p => p.then(scc => [scc]).catch(err => [undefined, err]);
 
 Gio._promisify(Gio.Subprocess.prototype, 'communicate_utf8_async');
-
-async function processText(text) {
-    let [haystack] = await promiseTo(execute(`pypinyin -s FIRST_LETTER -- ${GLib.shell_quote(text)}`));
-
-    return [text, compact(shrink(text)), (haystack || text).replace(/[^A-Za-z]/g, '').toLowerCase()];
-}
 
 async function execute(cmd) {
     let proc = new Gio.Subprocess({
@@ -511,11 +506,11 @@ class IBusClipHistory {
 
     onClipboardChanged(_sel, type, _src) {
         if(type !== St.ClipboardType.CLIPBOARD) return;
-        St.Clipboard.get_default().get_text(St.ClipboardType.CLIPBOARD, async (_clip, text) => {
+        St.Clipboard.get_default().get_text(St.ClipboardType.CLIPBOARD, (_clip, text) => {
             if(!text) return;
             let index = ClipTable.findIndex(x => x[0] === text);
             if(index < 0) {
-                ClipTable.unshift(await processText(text).catch(noop));
+                ClipTable.unshift([text, compact(shrink(text)), Initial.conv(text.toLowerCase())]);
                 while(ClipTable.length > 64) ClipTable.pop();
             } else if(index > 0) {
                 [ClipTable[0], ClipTable[index]] = [ClipTable[index], ClipTable[0]];

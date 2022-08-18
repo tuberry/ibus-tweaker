@@ -65,7 +65,7 @@ class IBusTweakerPrefs extends Adw.PreferencesGroup {
             [this._field.AUTOSWITCH[1],    [_('Autoswitch input mode')], this._field.UNKNOWNMODE[1]],
             [this._field.ENABLEDIALOG[1],  [_('Run dialog')], this._field_run_dialog],
             [this._field.ENABLEMSTHEME[1], [_('MS IME theme')], this._field.MSTHEMESTYLE[1], this._field.MSTHEMECOLOR[1]],
-            [this._field.ENABLECLIP[1],    [_('Clipboard history'), _('Depends on python-pinyin for Chinese search')], this._field.CLIPPAGESIZE[1], this._field_clip_history],
+            [this._field.ENABLECLIP[1],    [_('Clipboard history')], this._field.CLIPPAGESIZE[1], this._field_clip_history],
             [this._field.USECUSTOMFONT[1], [_('Use custom font')], this._field.CUSTOMFONT[1]],
         ].forEach(xs => this.add(new UI.PrefRow(...xs)));
     }

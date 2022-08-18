@@ -31,26 +31,21 @@ git checkout your_gnome_shell_version
 
 [<img src="https://raw.githubusercontent.com/andyholmes/gnome-shell-extensions-badge/master/get-it-on-ego.svg?sanitize=true" alt="Get it on GNOME Extensions" height="100" align="middle">][EGO]
 
-### Dependencies
-
-**Clipboard history**: The Chinese search function depends on [python-pinyin], which can be used to filter results by pinyin initials:
-
-```bash
-yay -S pypinyin # use your distro's package manager instead
-```
-
-https://user-images.githubusercontent.com/17917040/139533759-a5ebe54c-2fca-4006-9257-850877268499.mp4
-
-*Tips*: press <kbd>DELETE</kbd> to delete and <kbd>\\</kbd> to merge entries.
 
 ## Features
 
 ![itpref](https://user-images.githubusercontent.com/17917040/155883168-fb8140ba-1cf9-497e-818c-a298125a0133.png)
 
+**Clipboard history**:
+
+https://user-images.githubusercontent.com/17917040/139533759-a5ebe54c-2fca-4006-9257-850877268499.mp4
+
+*Tips*: press <kbd>DELETE</kbd> to delete and <kbd>\\</kbd> to merge entries.
+
 ## Acknowledgements
 
 * [ibus-font-setting](https://extensions.gnome.org/extension/1121/ibus-font-setting/): font setting
+* [python-pinyin](https://github.com/mozillazg/python-pinyin): gen pinyin [initials](/gen-initials.py)
 
-[python-pinyin]:https://github.com/mozillazg/python-pinyin
 [EGO]:https://extensions.gnome.org/extension/2820/ibus-tweaker/
 [license]:https://img.shields.io/badge/license-GPLv3-green.svg
