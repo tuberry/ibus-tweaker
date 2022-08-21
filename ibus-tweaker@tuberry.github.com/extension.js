@@ -643,7 +643,7 @@ class IBusClipHistory {
 
 class Extensions {
     constructor() {
-        this._tweaks = new Map();
+        this._tweaks = {};
         this._bindSettings();
     }
 
@@ -659,20 +659,17 @@ class Extensions {
         }, ExtensionUtils.getSettings(), this, true);
         this._field.bindF(this, (x, y) => {
             if(x._field._get(y)) {
-                if(x._tweaks.get(y)) return;
-                x._tweaks.set(y, new this._field.prop[y][2]());
+                x._tweaks[y] ??= new this._field.prop[y][2]();
             } else {
-                if(!x._tweaks.get(y)) return;
-                x._tweaks.get(y).destroy();
-                x._tweaks.delete(y);
+                x._tweaks[y]?.destroy();
+                delete x._tweaks[y];
             }
         });
     }
 
     destroy() {
         this._field.unbind(this);
-        this._tweaks.forEach(v => v.destroy());
-        this._tweaks.clear();
+        for(let x in this._tweaks) this._tweaks[x].destroy(), delete this._tweaks[x];
     }
 }
 

@@ -2,8 +2,8 @@
 // by tuberry
 /* exported conv */
 
-// pinyin initials of U+4F00-U+9FF1 (20902), gen with python-pinyin (https://github.com/mozillazg/python-pinyin)
-const HS = 19968;
+const HS = 19968; // U+4E00
+// pinyin initials of U+4E00-U+9FA5 (20902), gen with python-pinyin (https://github.com/mozillazg/python-pinyin)
 const PY = [
     'ydkqsxhwzssxjbymgcczqpssqbycdscdqldylybsgjgyqzjjfgcclzzbwdwzjljpfyynwjjtmyyzwzhflyppqhgccyyymjqyxxgjxhsdsjnjjsmhmlzrxyfsngsyczqz',
     'ggllyjlmyzssecykyyhqwjssggyxyqyjtwkdjhychmyxjtlxjyqbyxdldwrrjjwysrldzjpcbzjjbrcfslbczstzfxxthtrqggbdlyccscymmrfcyqzpwwjjyfcrwfdf',
@@ -172,5 +172,5 @@ const PY = [
 ];
 
 function conv(str) {
-    return str.replace(/[^ -~]/g, x => (y => PY[y >> 7]?.[y % 128])(x.charCodeAt(0) - HS) ?? x);
+    return str.replace(/[^ -~]/g, x => (y => PY[y >> 7]?.[y & 127])(x.charCodeAt(0) - HS) ?? x);
 }
