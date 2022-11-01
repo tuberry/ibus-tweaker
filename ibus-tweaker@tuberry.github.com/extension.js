@@ -40,7 +40,6 @@ async function execute(cmd) {
     proc.init(null);
     let [stdout, stderr] = await proc.communicate_utf8_async(null, null);
     if(proc.get_exit_status()) throw new Error(stderr.trim());
-
     return stdout.trim();
 }
 
@@ -52,7 +51,6 @@ function fuzzySearch(needle, haystack) {
         while(j < haystack.length) if(haystack[j++] === needle[i]) continue outer;
         return false;
     }
-
     return true;
 }
 
@@ -93,10 +91,10 @@ const TempPopup = {
 };
 
 class Field {
-    constructor(prop, gset, obj, unbind) {
+    constructor(prop, gset, obj, detach) {
         this.gset = typeof gset === 'string' ? new Gio.Settings({ schema: gset }) : gset;
         this.prop = prop;
-        if(!unbind) this.bind(obj);
+        if(!detach) this.attach(obj);
     }
 
     _get(x) {
@@ -107,19 +105,20 @@ class Field {
         this.gset[`set_${this.prop[x][1]}`](this.prop[x][0], y);
     }
 
-    bind(a) {
+    attach(a) {
         let fs = Object.entries(this.prop);
         fs.forEach(([x]) => { a[x] = this._get(x); });
         this.gset.connectObject(...fs.flatMap(([x, [y]]) => [`changed::${y}`, () => { a[x] = this._get(x); }]), a);
     }
 
-    bindF(a, f) {
+    attachWith(a, f) {
         let fs = Object.entries(this.prop);
         fs.forEach(([x]) => f(a, x));
         this.gset.connectObject(...fs.flatMap(([x, [y]]) => [`changed::${y}`, () => f(a, x)]), a);
+        return this;
     }
 
-    unbind(a) {
+    detach(a) {
         this.gset.disconnectObject(a);
     }
 }
@@ -138,7 +137,7 @@ class IBusAutoSwitch {
             shortcut:  [Fields.ENABLEDIALOG, 'boolean'],
             inputlist: [Fields.INPUTLIST,    'value'],
         }, this.gset, this);
-        this._states = new Map(Object.entries(this.inputlist.deep_unpack()));
+        this._states = new Map(Object.entries(this.inputlist.deepUnpack()));
     }
 
     get _state() {
@@ -158,7 +157,6 @@ class IBusAutoSwitch {
             let unknown = this.unknown === Unknown.DEFAULT ? state : this.unknown === Unknown.ON;
             this._states.set(this._tmp_win, unknown);
         }
-
         return state ^ this._states.get(this._tmp_win);
     }
 
@@ -175,7 +173,7 @@ class IBusAutoSwitch {
     }
 
     destroy() {
-        this._field.unbind(this);
+        this._field.detach(this);
         this.shortcut = null;
         global.display.disconnectObject(this);
         Main.overview.disconnectObject(this);
@@ -204,7 +202,7 @@ class IBusFontSetting {
     }
 
     destroy() {
-        this._field.unbind(this);
+        this._field.detach(this);
         CandidatePopup.set_style('');
         CandidateArea._candidateBoxes.forEach(x => {
             x._candidateLabel.set_style('');
@@ -225,7 +223,7 @@ class IBusOrientation {
     }
 
     destroy() {
-        this._field.unbind(this);
+        this._field.detach(this);
         CandidateArea.setOrientation = this._originalSetOrientation;
     }
 }
@@ -333,7 +331,7 @@ class IBusThemeManager {
     }
 
     destroy() {
-        ['_field', '_tfield', '_nfield'].forEach(x => this[x].unbind(this));
+        ['_field', '_tfield', '_nfield'].forEach(x => this[x].detach(this));
         LightProxy.disconnectObject(this);
         this._restoreStyle();
     }
@@ -377,7 +375,8 @@ class UpdatesIndicator {
     }
 
     _addIndicator() {
-        this._button = new PanelMenu.Button(0, 'Updates Indicator', true);
+        this._button = new PanelMenu.Button(0, Me.metadata.uuid, true);
+        this._button.reactive = false;
         let box = new St.BoxLayout({ style_class: 'panel-status-menu-box' });
         let icon = new St.Icon({ y_expand: false, style_class: 'system-status-icon', icon_name: 'software-update-available-symbolic' });
         this._button.label = new St.Label({ y_expand: false, y_align: Clutter.ActorAlign.CENTER });
@@ -394,7 +393,7 @@ class UpdatesIndicator {
     }
 
     destroy() {
-        this._field.unbind(this);
+        this._field.detach(this);
         clearTimeout(this._fileMonitorId);
         clearInterval(this._checkUpdatesId);
         this._checkUpdated();
@@ -508,7 +507,7 @@ class IBusClipHistory {
         if(type !== St.ClipboardType.CLIPBOARD) return;
         St.Clipboard.get_default().get_text(St.ClipboardType.CLIPBOARD, (_clip, text) => {
             if(!text) return;
-            let index = ClipTable.findIndex(x => x[0] === text);
+            let index = ClipTable.findIndex(([x]) => x === text);
             if(index < 0) {
                 ClipTable.unshift([text, compact(shrink(text)), Initial.conv(text.toLowerCase())]);
                 while(ClipTable.length > 64) ClipTable.pop();
@@ -544,7 +543,6 @@ class IBusClipHistory {
             this.dispel();
             return Clutter.EVENT_STOP;
         }
-
         return Clutter.EVENT_PROPAGATE;
     }
 
@@ -632,7 +630,7 @@ class IBusClipHistory {
     }
 
     destroy() {
-        this._field.unbind(this);
+        this._field.detach(this);
         this.dispel();
         this.shortcut = null;
         clearTimeout(this._delayId);
@@ -657,9 +655,9 @@ class Extensions {
             theme:  [Fields.ENABLEMSTHEME, 'boolean', IBusThemeManager],
             update: [Fields.ENABLEUPDATES, 'boolean', UpdatesIndicator],
         }, ExtensionUtils.getSettings(), this, true);
-        this._field.bindF(this, (x, y) => {
+        this._field.attachWith(this, (x, y) => {
             if(x._field._get(y)) {
-                x._tweaks[y] ??= new this._field.prop[y][2]();
+                x._tweaks[y] ??= new x._field.prop[y][2]();
             } else {
                 x._tweaks[y]?.destroy();
                 delete x._tweaks[y];
@@ -668,13 +666,15 @@ class Extensions {
     }
 
     destroy() {
-        this._field.unbind(this);
+        this._field.detach(this);
         for(let x in this._tweaks) this._tweaks[x].destroy(), delete this._tweaks[x];
     }
 }
 
+
+
 class Extension {
-    static {
+    constructor() {
         ExtensionUtils.initTranslations();
     }
 
