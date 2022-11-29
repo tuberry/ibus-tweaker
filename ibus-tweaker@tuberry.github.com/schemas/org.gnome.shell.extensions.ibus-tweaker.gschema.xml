@@ -49,12 +49,7 @@
         <range min="0" max="7"/>
         <summary>MS theme color</summary>
     </key>
-    <key type="u" name="unkown-input-mode">
-        <default>2</default>
-        <range min="0" max="2"/>
-        <summary>input mode of unknown windows</summary>
-    </key>
-    <key type="a{sb}" name="input-mode-list">
+    <key type="a{s(ss)}" name="input-modes">
         <default>[]</default>
         <summary>input mode list</summary>
     </key>

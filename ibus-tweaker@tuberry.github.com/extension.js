@@ -6,9 +6,10 @@
 const Main = imports.ui.main;
 const PanelMenu = imports.ui.panelMenu;
 const BoxPointer = imports.ui.boxpointer;
+const { RunDialog } = imports.ui.runDialog;
 const IBusPopup = imports.ui.ibusCandidatePopup;
 const IBusManager = imports.misc.ibusManager.getIBusManager();
-const InputScMgr = imports.ui.status.keyboard.getInputSourceManager();
+const InputManager = imports.ui.status.keyboard.getInputSourceManager();
 const { Shell, Clutter, Gio, GLib, Meta, IBus, Pango, St, GObject } = imports.gi;
 
 const LightProxy = Main.panel.statusArea.quickSettings._nightLight._proxy;
@@ -16,13 +17,11 @@ const CandidatePopup = IBusManager._candidatePopup;
 const CandidateArea = CandidatePopup._candidateArea;
 const ExtensionUtils = imports.misc.extensionUtils;
 const Me = ExtensionUtils.getCurrentExtension();
-const { Fields } = Me.imports.fields;
+const { Fields, Field } = Me.imports.fields;
 const Initial = Me.imports.initial;
 const _ = ExtensionUtils.gettext;
 
 const ClipTable = [];
-const ASCIIs = ['en', 'A', '英'];
-const Unknown = { ON: 0, OFF: 1, DEFAULT: 2 };
 const Style = { AUTO: 0, LIGHT: 1, DARK: 2, SYSTEM: 3 };
 const Indices = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'];
 
@@ -90,106 +89,107 @@ const TempPopup = {
     _auxText: { style_class: 'candidate-popup-text' },
 };
 
-class Field {
-    constructor(prop, gset, obj, detach) {
-        this.gset = typeof gset === 'string' ? new Gio.Settings({ schema: gset }) : gset;
-        this.prop = prop;
-        if(!detach) this.attach(obj);
-    }
-
-    _get(x) {
-        return this.gset[`get_${this.prop[x][1]}`](this.prop[x][0]);
-    }
-
-    _set(x, y) {
-        this.gset[`set_${this.prop[x][1]}`](this.prop[x][0], y);
-    }
-
-    attach(a) {
-        let fs = Object.entries(this.prop);
-        fs.forEach(([x]) => { a[x] = this._get(x); });
-        this.gset.connectObject(...fs.flatMap(([x, [y]]) => [`changed::${y}`, () => { a[x] = this._get(x); }]), a);
-    }
-
-    attachWith(a, f) {
-        let fs = Object.entries(this.prop);
-        fs.forEach(([x]) => f(a, x));
-        this.gset.connectObject(...fs.flatMap(([x, [y]]) => [`changed::${y}`, () => f(a, x)]), a);
-        return this;
-    }
-
-    detach(a) {
-        this.gset.disconnectObject(a);
-    }
-}
-
 class IBusAutoSwitch {
-    constructor() {
-        this._bindSettings();
-        global.display.connectObject('notify::focus-window', this._onWindowChanged.bind(this), this);
-        Main.overview.connectObject('hidden', this._onWindowChanged.bind(this), 'showing', this._onWindowChanged.bind(this), this);
+    constructor(field) {
+        this._bindSettings(field);
+        global.display.connectObject('notify::focus-window', () => this.toggleMode(), this);
+        Main.overview.connectObject('hidden', () => this.setEmpty(), 'shown', () => this.setEmpty('#overview'), this); // ?? conflict other connects
     }
 
-    _bindSettings() {
-        this.gset = ExtensionUtils.getSettings();
-        this._field = new Field({
-            unknown:   [Fields.UNKNOWNMODE,  'uint'],
-            shortcut:  [Fields.ENABLEDIALOG, 'boolean'],
-            inputlist: [Fields.INPUTLIST,    'value'],
-        }, this.gset, this);
-        this._states = new Map(Object.entries(this.inputlist.deepUnpack()));
+    _bindSettings(field) {
+        this._field = field;
+        this._field.attach({ modes: [Fields.INPUTMODES, 'value'], shortcut: [Fields.ENABLEDIALOG, 'boolean'] }, this);
+        this._modes = new Map(Object.entries(this.modes.recursiveUnpack()));
     }
 
-    get _state() {
-        return ASCIIs.includes(Main.panel.statusArea.keyboard._indicatorLabels[InputScMgr.currentSource.index].get_text());
-    }
-
-    get _toggle() {
-        let win = InputScMgr._getCurrentWindow();
-        if(!win) return false;
-
-        let state = this._state;
-        let store = this._states.get(this._tmp_win);
-        if(state !== store) this._states.set(this._tmp_win, state);
-
-        this._tmp_win = win.wm_class ? win.wm_class.toLowerCase() : '';
-        if(!this._states.has(this._tmp_win)) {
-            let unknown = this.unknown === Unknown.DEFAULT ? state : this.unknown === Unknown.ON;
-            this._states.set(this._tmp_win, unknown);
+    getInputMode(ps) {
+        if(!ps) return '';
+        for(let p, i = 0; (p = ps.get(i)); i++) {
+            if(!p.key.startsWith('InputMode')) continue;
+            switch(p.prop_type) {
+            case IBus.PropType.NORMAL: // ibus-libpinyin
+                return p.symbol?.get_text() ?? p.label.get_text();
+            case IBus.PropType.TOGGLE: // ibus-hangul
+                return p.state.toString();
+            case IBus.PropType.MENU: // ibus-typing-booster
+                return this.getInputMode(p.sub_props);
+            case IBus.PropType.RADIO: // ibus-typing-booster
+                if(p.state) return p.key.split('.').at(-1); break;
+            }
         }
-        return state ^ this._states.get(this._tmp_win);
+    }
+
+    setInputMode(ps, m) {
+        if(!ps) return;
+        for(let p, i = 0; (p = ps.get(i)); i++) {
+            if(!p.key.startsWith('InputMode')) continue;
+            switch(p.prop_type) {
+            case IBus.PropType.NORMAL:
+            case IBus.PropType.TOGGLE:
+                return this.activateProp(p.key, !p.state);
+            case IBus.PropType.MENU:
+                return this.setInputMode(p.sub_props, m);
+            case IBus.PropType.RADIO:
+                if(p.key.endsWith(m)) return this.activateProp(p.key, !p.state); break;
+            }
+        }
+    }
+
+    activateProp(key, state) {
+        // FIXME: not working on Wayland since https://gitlab.gnome.org/GNOME/gnome-shell/-/issues/6062
+        // setTimeout(() => IBusManager.activateProperty(key, state ? 1 : 0), 50);
+        IBusManager.activateProperty(key, state ? 1 : 0);
+    }
+
+    setEmpty(empty) {
+        this._empty = empty;
+        this.toggleMode();
+    }
+
+    checkMode(win, id, mode) {
+        if(!this._modes.has(win)) this._modes.set(win, [id, mode]);
+        [this._id, this._mode] = this._modes.get(win);
+        return this._id !== id || this._mode !== mode;
+    }
+
+    toggleMode() {
+        let { id, properties } = InputManager.currentSource;
+        let mode = this.getInputMode(properties);
+        if(this.checkMode(this._win, id, mode)) this._modes.set(this._win, [id, mode]);
+        let win = this._empty || global.display.focus_window?.wm_class?.toLowerCase();
+        if(win && this.checkMode(this._win = win, id, mode) && this._id === id) this.setInputMode(properties, this._mode);
     }
 
     set shortcut(shortcut) {
-        this._shortId && Main.wm.removeKeybinding(Fields.RUNSHORTCUT);
-        this._shortId = shortcut && Main.wm.addKeybinding(Fields.RUNSHORTCUT, this.gset, Meta.KeyBindingFlags.NONE, Shell.ActionMode.ALL, () => {
-            if(!this._state) IBusManager.activateProperty('InputMode', IBus.PropState.CHECKED);
-            Main.openRunDialog();
-        });
-    }
-
-    _onWindowChanged() {
-        if(this._toggle && IBusManager._panelService) IBusManager.activateProperty('InputMode', IBus.PropState.CHECKED);
+        if(this._shortcut === shortcut) return;
+        if((this._shortcut = shortcut)) {
+            if(!Main.runDialog) Main.runDialog = new RunDialog();
+            Main.runDialog.connectObject('notify::visible', () => this.setEmpty(Main.runDialog?.visible && '#run-dialog'), this);
+            Main.wm.addKeybinding(Fields.RUNSHORTCUT, this._field.gset, Meta.KeyBindingFlags.NONE, Shell.ActionMode.ALL, () => Main.openRunDialog());
+        } else {
+            Main.runDialog?.disconnectObject(this);
+            Main.wm.removeKeybinding(Fields.RUNSHORTCUT);
+        }
     }
 
     destroy() {
-        this._field.detach(this);
         this.shortcut = null;
-        global.display.disconnectObject(this);
+        this._field.detach(this);
         Main.overview.disconnectObject(this);
-        this._field._set('inputlist', new GLib.Variant('a{sb}', Object.fromEntries(this._states)));
+        global.display.disconnectObject(this);
+        this.setf('modes', new GLib.Variant('a{s(ss)}', Object.fromEntries(this._modes)));
     }
 }
 
 class IBusFontSetting {
-    constructor() {
-        this._field = new Field({ fontname: [Fields.CUSTOMFONT, 'string'] }, ExtensionUtils.getSettings(), this);
+    constructor(field) {
+        this._field = field.attach({ fontname: [Fields.CUSTOMFONT, 'string'] }, this);
     }
 
     set fontname(fontname) {
-        let scale = 13 / 16; // the fonts-size difference between index and candidate
-        let desc = Pango.FontDescription.from_string(fontname);
-        let getWeight = () => { try { return desc.get_weight(); } catch(e) { return parseInt(e.message); } }; // workaround for Pango.Weight enumeration exception (eg: 290)
+        let scale = 13 / 16,
+            desc = Pango.FontDescription.from_string(fontname),
+            getWeight = () => { try { return desc.get_weight(); } catch(e) { return parseInt(e.message); } }; // workaround for Pango.Weight enumeration exception (eg: 290)
         CandidatePopup.set_style(`font-weight: ${getWeight()};
                                  font-family: "${desc.get_family()}";
                                  font-size: ${(desc.get_size() / Pango.SCALE) * scale}pt;
@@ -212,10 +212,10 @@ class IBusFontSetting {
 }
 
 class IBusOrientation {
-    constructor() {
+    constructor(field) {
         this._originalSetOrientation = CandidateArea.setOrientation.bind(CandidateArea);
         CandidateArea.setOrientation = noop;
-        this._field = new Field({ orientation: [Fields.ORIENTATION, 'uint'] }, ExtensionUtils.getSettings(), this);
+        this._field = field.attach({ orientation: [Fields.ORIENTATION, 'uint'] }, this);
     }
 
     set orientation(orientation) {
@@ -243,76 +243,62 @@ class IBusPageButton {
 }
 
 class IBusThemeManager {
-    constructor() {
+    constructor(field) {
         this._replaceStyle();
-        this._bindSettings();
-        this._onProxyChanged();
+        this._bindSettings(field);
+        this._syncNightLight();
     }
 
-    _bindSettings() {
-        this._tfield = new Field({ scheme: ['color-scheme', 'string'] }, 'org.gnome.desktop.interface', this);
-        this._nfield = new Field({ night: ['night-light-enabled', 'boolean'] }, 'org.gnome.settings-daemon.plugins.color', this);
-        this._field = new Field({  color: [Fields.MSTHEMECOLOR, 'uint'], style: [Fields.MSTHEMESTYLE, 'uint'] }, ExtensionUtils.getSettings(), this);
-        LightProxy.connectObject('g-properties-changed', this._onProxyChanged.bind(this), this);
+    _bindSettings(field) {
+        this._tfield = new Field({
+            scheme: ['color-scheme', 'string', x => x === 'prefer-dark'],
+        }, 'org.gnome.desktop.interface', this, 'murkey');
+        this._field = field.attach({
+            color: [Fields.MSTHEMECOLOR, 'uint', x => this._palatte[x]],
+            style: [Fields.MSTHEMESTYLE, 'uint'],
+        }, this, 'murkey');
+        LightProxy.connectObject('g-properties-changed', (_l, p) => p.lookup_value('NightLightActive', null) && this._syncNightLight(), this);
     }
 
-    _onProxyChanged() {
-        this._light = LightProxy.NightLightActive;
+    _syncNightLight() {
+        if(LightProxy.NightLightActive === null) return;
+        this.murkey = ['night_light', LightProxy.NightLightActive];
+    }
+
+    set murkey([k, v, out]) {
+        this[k] = out ? out(v) : v;
+        this.dark = (this.style === Style.AUTO && this.night_light) ||
+            (this.style === Style.SYSTEM && this.scheme) || this.style === Style.DARK;
         this._updateStyle();
     }
 
-    set night(night) {
-        this._night = night;
-        this._updateStyle();
-    }
-
-    set scheme(scheme) {
-        this._scheme = scheme === 'prefer-dark';
-        this._updateStyle();
-    }
-
-    set style(style) {
-        this._style = style;
-        this._updateStyle();
-    }
-
-    set color(color) {
-        this._color = this._palatte[color];
-        this._updateStyle();
-    }
-
-    get dark() {
-        return (this._style === Style.AUTO && this._night && this._light) ||
-            (this._style === Style.SYSTEM && this._scheme) || this._style === Style.DARK;
-    }
-
-    setDark(dark) {
-        if((this._dark = dark)) {
-            CandidatePopup.remove_style_class_name(this._color);
+    toggleDark() {
+        if((this._dark = this.dark)) {
+            CandidatePopup.remove_style_class_name(this.color);
             CandidatePopup.add_style_class_name('night');
-            CandidatePopup.add_style_class_name(`night-${this._color}`);
+            CandidatePopup.add_style_class_name(`night-${this.color}`);
         } else {
             CandidatePopup.remove_style_class_name('night');
-            CandidatePopup.remove_style_class_name(`night-${this._color}`);
-            CandidatePopup.add_style_class_name(this._color);
+            CandidatePopup.remove_style_class_name(`night-${this.color}`);
+            CandidatePopup.add_style_class_name(this.color);
         }
     }
 
-    toggleColor() {
+    changeColor() {
         if(this._dark) {
-            if(this._prev_color) CandidatePopup.remove_style_class_name(`night-${this._prev_color}`);
-            CandidatePopup.add_style_class_name(`night-${this._color}`);
+            if(this._color) CandidatePopup.remove_style_class_name(`night-${this._color}`);
+            CandidatePopup.add_style_class_name(`night-${this.color}`);
         } else {
-            if(this._prev_color) CandidatePopup.remove_style_class_name(this._prev_color);
-            CandidatePopup.add_style_class_name(this._color);
+            if(this._color) CandidatePopup.remove_style_class_name(this._color);
+            CandidatePopup.add_style_class_name(this.color);
         }
-        this._prev_color = this._color;
+        this._color = this.color;
     }
 
     _updateStyle() {
-        if(!['_night', '_style', '_color', '_scheme'].every(x => x in this)) return;
-        if(this._dark !== this.dark) this.setDark(this.dark);
-        if(this._prev_color !== this._color) this.toggleColor();
+        if(!('night_light' in this)) return;
+        if(this._dark !== this.dark) this.toggleDark();
+        if(this._color !== this.color) this.changeColor();
     }
 
     _replaceStyle() {
@@ -323,33 +309,33 @@ class IBusThemeManager {
     _restoreStyle() {
         if(this.style) {
             CandidatePopup.remove_style_class_name('night');
-            CandidatePopup.remove_style_class_name(`night-${this._color}`);
+            CandidatePopup.remove_style_class_name(`night-${this.color}`);
         } else {
-            CandidatePopup.remove_style_class_name(this._color);
+            CandidatePopup.remove_style_class_name(this.color);
         }
         addStyleClass(TempPopup, TempPopup, CandidatePopup);
     }
 
     destroy() {
-        ['_field', '_tfield', '_nfield'].forEach(x => this[x].detach(this));
+        ['_field', '_tfield'].forEach(x => this[x].detach(this));
         LightProxy.disconnectObject(this);
         this._restoreStyle();
     }
 }
 
 class UpdatesIndicator {
-    constructor() {
-        this._bindSettings();
+    constructor(field) {
+        this._bindSettings(field);
         this._addIndicator();
         this._checkUpdates();
-        this._checkUpdatesId = setInterval(this._checkUpdates.bind(this), 60 * 60 * 1000);
+        this._checkUpdatesId = setInterval(() => this._checkUpdates(), 60 * 60 * 1000);
     }
 
-    _bindSettings() {
-        this._field = new Field({
+    _bindSettings(field) {
+        this._field = field.attach({
             updatesdir: [Fields.UPDATESDIR,   'string'],
             updatescmd: [Fields.CHECKUPDATES, 'string'],
-        }, ExtensionUtils.getSettings(), this);
+        }, this);
     }
 
     _checkUpdates() {
@@ -365,7 +351,7 @@ class UpdatesIndicator {
             this._fileMonitor = dir.monitor_directory(Gio.FileMonitorFlags.NONE, null);
             this._fileMonitor.connect('changed', () => {
                 clearTimeout(this._fileMonitorId);
-                this._fileMonitorId = setTimeout(this._checkUpdates.bind(this), 10 * 1000);
+                this._fileMonitorId = setTimeout(() => this._checkUpdates(), 10 * 1000);
             });
             this._button.label.set_text(count.toString());
             this._button.show();
@@ -435,9 +421,9 @@ class IBusClipPopup extends BoxPointer.BoxPointer {
     _replaceStyle(page_btn) {
         addStyleClass(TempPopup, CandidatePopup, this);
         this.set_style(CandidatePopup.get_style());
-        let [box] = CandidatePopup._candidateArea._candidateBoxes;
-        let i_style = box._indexLabel.get_style();
-        let c_style = box._candidateLabel.get_style();
+        let [box] = CandidatePopup._candidateArea._candidateBoxes,
+            i_style = box._indexLabel.get_style(),
+            c_style = box._candidateLabel.get_style();
         this._candidateArea._candidateBoxes.forEach(x => {
             x._indexLabel.set_style(i_style);
             x._candidateLabel.set_style(c_style);
@@ -476,20 +462,16 @@ class IBusClipPopup extends BoxPointer.BoxPointer {
 }
 
 class IBusClipHistory {
-    constructor() {
-        this.gset = ExtensionUtils.getSettings();
-        this._field = new Field({
-            page_size: [Fields.CLIPPAGESIZE, 'uint'],
-            page_btn:  [Fields.PAGEBUTTON,   'boolean'],
-        }, this.gset, this);
-        Main.overview.connectObject('showing',  this.dispel.bind(this), this);
+    constructor(field) {
+        this._field = field;
+        this._field.attach({ page_size: [Fields.CLIPPAGESIZE, 'uint'], page_btn: [Fields.PAGEBUTTON,   'boolean'] }, this);
         global.display.get_selection().connectObject('owner-changed', this.onClipboardChanged.bind(this), this);
         this.shortcut = true;
     }
 
     set shortcut(shortcut) {
         this._shortId && Main.wm.removeKeybinding(Fields.CLIPHISTCUT);
-        this._shortId = shortcut && Main.wm.addKeybinding(Fields.CLIPHISTCUT, this.gset, Meta.KeyBindingFlags.NONE, Shell.ActionMode.ALL, this.showLookupTable.bind(this));
+        this._shortId = shortcut && Main.wm.addKeybinding(Fields.CLIPHISTCUT, this._field.gset, Meta.KeyBindingFlags.NONE, Shell.ActionMode.ALL, () => this.showLookupTable());
     }
 
     summon() {
@@ -509,7 +491,7 @@ class IBusClipHistory {
             if(!text) return;
             let index = ClipTable.findIndex(([x]) => x === text);
             if(index < 0) {
-                ClipTable.unshift([text, compact(shrink(text)), Initial.conv(text.toLowerCase())]);
+                ClipTable.unshift([text, compact(shrink(text)), Initial.s2pyi(text.toLowerCase())]);
                 while(ClipTable.length > 64) ClipTable.pop();
             } else if(index > 0) {
                 [ClipTable[0], ClipTable[index]] = [ClipTable[index], ClipTable[0]];
@@ -582,7 +564,7 @@ class IBusClipHistory {
         this._ptr._show();
     }
 
-    candidateClicked(_area, index, _button, _state) {
+    candidateClicked(_area, index) {
         this.dispel();
         this.commitAt(index);
     }
@@ -606,9 +588,9 @@ class IBusClipHistory {
         let index = ClipTable.findIndex(x => x[0] === this._lookup[this._cursor][0]);
         if(index === -1 || index >= this._lookup.length - 1) return;
         this._lookup.splice(this._cursor, 1);
-        let [clip] = ClipTable.splice(index, 1);
-        let hays = ClipTable[index][2] + clip[2];
-        let text = `${ClipTable[index][0]} ${clip[0]}`;
+        let [clip] = ClipTable.splice(index, 1),
+            hays = ClipTable[index][2] + clip[2],
+            text = `${ClipTable[index][0]} ${clip[0]}`;
         this._lookup[this._cursor] = ClipTable[index] = [text, compact(shrink(text)), hays];
         this.cursor = this._cursor;
     }
@@ -634,11 +616,9 @@ class IBusClipHistory {
         this.dispel();
         this.shortcut = null;
         clearTimeout(this._delayId);
-        Main.overview.disconnectObject(this);
         global.display.get_selection().disconnectObject(this);
     }
 }
-
 class Extensions {
     constructor() {
         this._tweaks = {};
@@ -646,7 +626,8 @@ class Extensions {
     }
 
     _bindSettings() {
-        this._field = new Field({
+        this._field = new Field({}, ExtensionUtils.getSettings(), this, 'props');
+        this._field.attach({
             clip:   [Fields.ENABLECLIP,    'boolean', IBusClipHistory],
             font:   [Fields.USECUSTOMFONT, 'boolean', IBusFontSetting],
             input:  [Fields.AUTOSWITCH,    'boolean', IBusAutoSwitch],
@@ -654,24 +635,23 @@ class Extensions {
             pgbtn:  [Fields.PAGEBUTTON,    'boolean', IBusPageButton],
             theme:  [Fields.ENABLEMSTHEME, 'boolean', IBusThemeManager],
             update: [Fields.ENABLEUPDATES, 'boolean', UpdatesIndicator],
-        }, ExtensionUtils.getSettings(), this, true);
-        this._field.attachWith(this, (x, y) => {
-            if(x._field._get(y)) {
-                x._tweaks[y] ??= new x._field.prop[y][2]();
-            } else {
-                x._tweaks[y]?.destroy();
-                delete x._tweaks[y];
-            }
-        });
+        }, this, 'props');
+    }
+
+    set props([k, v, out]) {
+        if(v) {
+            this._tweaks[k] ??= new out(this._field);
+        } else {
+            this._tweaks[k]?.destroy();
+            this._tweaks[k] = null;
+        }
     }
 
     destroy() {
         this._field.detach(this);
-        for(let x in this._tweaks) this._tweaks[x].destroy(), delete this._tweaks[x];
+        for(let x in this._tweaks) this._tweaks[x].destroy(), this._tweaks[x] = null;
     }
 }
-
-
 
 class Extension {
     constructor() {

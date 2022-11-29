@@ -44,7 +44,6 @@ class IBusTweakerPrefs extends Adw.PreferencesGroup {
             PAGEBUTTON:    ['active',   new Gtk.CheckButton()],
             CLIPPAGESIZE:  ['value',    new UI.Spin(4, 10, 1, _('Page size'))],
             ORIENTATION:   ['selected', new UI.Drop([_('Vertical'), _('Horizontal')])],
-            UNKNOWNMODE:   ['selected', new UI.Drop([_('On'), _('Off'), _('Default')])],
             CUSTOMFONT:    ['font',     new Gtk.FontButton({ valign: Gtk.Align.CENTER })],
             MSTHEMESTYLE:  ['selected', new UI.Drop([_('Auto'), _('Light'), _('Dark'), _('System')])],
             MSTHEMECOLOR:  ['selected', new UI.Drop([_('Red'), _('Green'), _('Orange'), _('Blue'), _('Purple'), _('Turquoise'), _('Grey')])],
@@ -59,8 +58,8 @@ class IBusTweakerPrefs extends Adw.PreferencesGroup {
     _buildUI() {
         [
             [this._field.PAGEBUTTON[1],    [_('Hide page buttons')]],
+            [this._field.AUTOSWITCH[1],    [_('Autoswitch input mode')]],
             [this._field.ENABLEORIEN[1],   [_('Candidates orientation')], this._field.ORIENTATION[1]],
-            [this._field.AUTOSWITCH[1],    [_('Autoswitch input mode')], this._field.UNKNOWNMODE[1]],
             [this._field.ENABLEDIALOG[1],  [_('Run dialog')], this._field_run_dialog],
             [this._field.ENABLEMSTHEME[1], [_('MS IME theme')], this._field.MSTHEMESTYLE[1], this._field.MSTHEMECOLOR[1]],
             [this._field.ENABLECLIP[1],    [_('Clipboard history')], this._field.CLIPPAGESIZE[1], this._field_clip_history],

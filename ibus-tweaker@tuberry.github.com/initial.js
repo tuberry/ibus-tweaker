@@ -1,8 +1,8 @@
 // vim:fdm=syntax
 // by tuberry
-/* exported conv */
+/* exported s2pyi */
 
-const HS = 19968; // U+4E00
+const HS = '\u4e00'.charCodeAt(0);
 // pinyin initials of U+4E00-U+9FA5 (20902), gen with python-pinyin (https://github.com/mozillazg/python-pinyin)
 const PY = [
     'ydkqsxhwzssxjbymgcczqpssqbycdscdqldylybsgjgyqzjjfgcclzzbwdwzjljpfyynwjjtmyyzwzhflyppqhgccyyymjqyxxgjxhsdsjnjjsmhmlzrxyfsngsyczqz',
@@ -171,6 +171,6 @@ const PY = [
     'chyjlbtzkycqwlpgpyllgkdldlgkgqbgychjxy',
 ];
 
-function conv(str) {
+function s2pyi(str) {
     return str.replace(/[^ -~]/g, x => (y => PY[y >> 7]?.[y & 127])(x.charCodeAt(0) - HS) ?? x);
 }
