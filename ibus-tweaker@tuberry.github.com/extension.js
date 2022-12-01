@@ -98,7 +98,10 @@ class IBusAutoSwitch {
 
     _bindSettings(field) {
         this._field = field;
-        this._field.attach({ modes: [Fields.INPUTMODES, 'value'], shortcut: [Fields.ENABLEDIALOG, 'boolean'] }, this);
+        this._field.attach({
+            modes:    [Fields.INPUTMODES, 'value'],
+            shortcut: [Fields.ENABLEDIALOG, 'boolean'],
+        }, this);
         this._modes = new Map(Object.entries(this.modes.recursiveUnpack()));
     }
 
@@ -254,7 +257,7 @@ class IBusThemeManager {
             scheme: ['color-scheme', 'string', x => x === 'prefer-dark'],
         }, 'org.gnome.desktop.interface', this, 'murkey');
         this._field = field.attach({
-            color: [Fields.MSTHEMECOLOR, 'uint', x => this._palatte[x]],
+            color: [Fields.MSTHEMECOLOR, 'uint', x => this._palette[x]],
             style: [Fields.MSTHEMESTYLE, 'uint'],
         }, this, 'murkey');
         LightProxy.connectObject('g-properties-changed', (_l, p) => p.lookup_value('NightLightActive', null) && this._syncNightLight(), this);
@@ -302,7 +305,7 @@ class IBusThemeManager {
     }
 
     _replaceStyle() {
-        this._palatte = ['red', 'green', 'orange', 'blue', 'purple', 'turquoise', 'grey'];
+        this._palette = ['red', 'green', 'orange', 'blue', 'purple', 'turquoise', 'grey'];
         addStyleClass(TempPopup, TempPopup, CandidatePopup, x => x.replace(/candidate/g, 'ibus-tweaker-candidate'));
     }
 
@@ -464,7 +467,10 @@ class IBusClipPopup extends BoxPointer.BoxPointer {
 class IBusClipHistory {
     constructor(field) {
         this._field = field;
-        this._field.attach({ page_size: [Fields.CLIPPAGESIZE, 'uint'], page_btn: [Fields.PAGEBUTTON,   'boolean'] }, this);
+        this._field.attach({
+            page_size: [Fields.CLIPPAGESIZE, 'uint'],
+            page_btn:  [Fields.PAGEBUTTON, 'boolean'],
+        }, this);
         global.display.get_selection().connectObject('owner-changed', this.onClipboardChanged.bind(this), this);
         this.shortcut = true;
     }
@@ -533,8 +539,8 @@ class IBusClipHistory {
         if(pos >= 0 && pos < this._lookup.length) {
             this.cursor = pos;
         } else if(pos >= this._lookup.length) {
-            let expection = (this._page + 1) * this.page_size;
-            if(this._lookup.length > expection) this.cursor = expection;
+            let expectation = (this._page + 1) * this.page_size;
+            if(this._lookup.length > expectation) this.cursor = expectation;
         }
     }
 
@@ -649,7 +655,7 @@ class Extensions {
 
     destroy() {
         this._field.detach(this);
-        for(let x in this._tweaks) this._tweaks[x].destroy(), this._tweaks[x] = null;
+        for(let x in this._tweaks) this.props = [x, false, null];
     }
 }
 
