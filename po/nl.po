@@ -1,0 +1,135 @@
+# Dutch translations for gnome-shell-extension-ibus-tweaker package
+# gnome-shell-extension-ibus-tweaker
+# Copyright (C) 2021 THE gnome-shell-extension-ibus-tweaker'S COPYRIGHT HOLDER
+# This file is distributed under the same license as the gnome-shell-extension-ibus-tweaker package.
+# Automatically generated, 2021.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: gnome-shell-extension-ibus-tweaker 35\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2023-02-10 05:36+0800\n"
+"PO-Revision-Date: 2021-09-14 14:37+0200\n"
+"Last-Translator: Heimen Stoffels <vistausss@fastmail.com>\n"
+"Language-Team: Dutch <vistausss@fastmail.com>\n"
+"Language: nl\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"X-Generator: Poedit 3.0\n"
+
+#: src/ui.js:32
+msgid "Clear"
+msgstr ""
+
+#: src/ui.js:266
+msgid "Click or press ENTER to commit changes"
+msgstr ""
+
+#: src/prefs.js:42
+msgid "Page size"
+msgstr ""
+
+#: src/prefs.js:43
+msgid "Vertical"
+msgstr "Verticaal"
+
+#: src/prefs.js:43
+msgid "Horizontal"
+msgstr "Horizontaal"
+
+#: src/prefs.js:45
+msgid "Auto"
+msgstr "Automatisch"
+
+#: src/prefs.js:45
+msgid "Light"
+msgstr "Licht"
+
+#: src/prefs.js:45
+msgid "Dark"
+msgstr "Donker"
+
+#: src/prefs.js:45
+msgid "System"
+msgstr ""
+
+#: src/prefs.js:46
+msgid "Red"
+msgstr "Rood"
+
+#: src/prefs.js:46
+msgid "Green"
+msgstr "Groen"
+
+#: src/prefs.js:46
+msgid "Orange"
+msgstr "Oranje"
+
+#: src/prefs.js:46
+msgid "Blue"
+msgstr "Blauw"
+
+#: src/prefs.js:46
+msgid "Purple"
+msgstr "Paars"
+
+#: src/prefs.js:46
+msgid "Turquoise"
+msgstr "Turkoois"
+
+#: src/prefs.js:46
+msgid "Grey"
+msgstr "Grijs"
+
+#: src/prefs.js:58
+msgid "Hide page buttons"
+msgstr ""
+
+#: src/prefs.js:59
+#, fuzzy
+msgid "Autoswitch input mode"
+msgstr "Automatisch schakelen tussen ascii-modi"
+
+#: src/prefs.js:60
+msgid "Candidates orientation"
+msgstr "Suggestie-oriëntatie"
+
+#: src/prefs.js:61
+msgid "Run dialog"
+msgstr "Uitvoervenster"
+
+#: src/prefs.js:62
+msgid "MS IME theme"
+msgstr "MS IME-thema"
+
+#: src/prefs.js:63
+msgid "Clipboard history"
+msgstr ""
+
+#: src/prefs.js:64
+msgid "Use custom font"
+msgstr "Aangepast lettertype gebruiken"
+
+#: src/extension.js:442
+msgid "📋："
+msgstr ""
+
+#: src/extension.js:446
+#, javascript-format
+msgid "%dC"
+msgstr ""
+
+#: src/extension.js:558
+msgid "Empty history."
+msgstr ""
+
+#~ msgid "On"
+#~ msgstr "Aan"
+
+#~ msgid "Off"
+#~ msgstr "Uit"
+
+#~ msgid "Default"
+#~ msgstr "Standaard"

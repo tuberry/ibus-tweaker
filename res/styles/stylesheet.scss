@@ -1,0 +1,98 @@
+$variant: 'light';
+
+@import 'gnome-shell-sass/_colors';
+
+$pfx: 'ibus-tweaker-candidate';
+
+$colors: ();
+$hues: (
+'grey': 0,
+'blue': 0.6,
+'red': 0.95,
+'purple': 0.8,
+'green': 0.328,
+'orange': 0.047,
+'turquoise': 0.5,
+);
+@each $k, $v in $hues {
+    $s: if($k == 'grey', 0, 75%);
+    $colors: map-merge($colors, ($k: hsl($v * 360deg, $s, 80%)));
+    $colors: map-merge($colors, ("night-#{$k}": hsl($v * 360deg, $s, 40%)));
+}
+// @debug $colors;
+
+@mixin fg($t: 0) {
+    color: transparentize($dark_5, $t);
+    .night & { color: transparentize($light_1, $t); }
+}
+
+@mixin fb {
+    @include fg;
+    background-color: $bg_color;
+    .night & { background-color: lighten($_dark_base_color, 5%); }
+}
+
+@mixin bg {
+    @each $k, $v in $colors {
+        .#{$k} &:hover { background-color: transparentize($v, 0.6); }
+        .#{$k} &:selected { background-color: transparentize($v, 0.05); }
+    }
+}
+
+@mixin bd {
+    @each $k, $v in $colors {
+        .#{$k} & { border-color: transparentize($v, 0.05); }
+    }
+}
+
+.#{$pfx}-popup-boxpointer {
+    -arrow-background-color: transparent;
+    -arrow-border-radius: 0.8125em;
+}
+
+.#{$pfx}-page-button-previous {
+    border-right-width: 0;
+}
+
+.#{$pfx}-index {
+    @include fg(0.4);
+}
+
+.#{$pfx}-page-button-box {
+    @include bd;
+    .vertical & { padding-top: 0; border-top-width: 1px; }
+    .horizontal & { padding-left: 0; border-left-width: 1px; }
+}
+
+.#{$pfx}-popup-content {
+    @include fb;
+    @include bd;
+    @include bg;
+    padding: 0;
+    margin: 0.3em;
+    border-width: 1px;
+    border-radius: 0.2em;
+}
+
+.#{$pfx}-popup-text {
+    @include bd;
+    padding: 0;
+    border-width: 0;
+    border-bottom-width: 1px;
+}
+
+.#{$pfx}-box {
+    @include bg;
+    padding: 0.5em;
+    border-radius: 0;
+    transition-duration: 100ms;
+}
+
+.#{$pfx}-page-button {
+    @include fb;
+    @include bg;
+    padding: 0;
+    border-radius: 0.2em;
+    & StIcon { icon-size: 1.45em; }
+    &:insensitive { @include fg(0.6); }
+}

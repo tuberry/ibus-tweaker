@@ -352,7 +352,8 @@ class UpdatesIndicator {
         if(count) {
             let dir = Gio.File.new_for_path(this.updatesdir);
             this._fileMonitor = dir.monitor_directory(Gio.FileMonitorFlags.NONE, null);
-            this._fileMonitor.connect('changed', () => {
+            this._fileMonitor.connect('changed', (_o, _s, _t, e) => {
+                if(e !== Gio.FileMonitorEvent.CHANGES_DONE_HINT) return;
                 clearTimeout(this._fileMonitorId);
                 this._fileMonitorId = setTimeout(() => this._checkUpdates(), 10 * 1000);
             });
@@ -372,7 +373,7 @@ class UpdatesIndicator {
         box.add_child(icon);
         box.add_child(this._button.label);
         this._button.add_actor(box);
-        Main.panel.addToStatusArea(Me.metadata.name, this._button, 5, 'center');
+        Main.panel.addToStatusArea(Me.metadata.uuid, this._button, 5, 'center');
         this._button.hide();
     }
 
