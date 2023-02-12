@@ -4,7 +4,6 @@ $variant: 'light';
 
 $pfx: 'ibus-tweaker-candidate';
 
-$colors: ();
 $hues: (
 'grey': 0,
 'blue': 0.6,
@@ -14,6 +13,7 @@ $hues: (
 'orange': 0.047,
 'turquoise': 0.5,
 );
+$colors: ();
 @each $k, $v in $hues {
     $s: if($k == 'grey', 0, 75%);
     $colors: map-merge($colors, ($k: hsl($v * 360deg, $s, 80%)));
@@ -28,7 +28,7 @@ $hues: (
 
 @mixin fb {
     @include fg;
-    background-color: $bg_color;
+    background-color: lighten($bg_color, 5%);
     .night & { background-color: lighten($_dark_base_color, 5%); }
 }
 

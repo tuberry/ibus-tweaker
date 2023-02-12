@@ -5,7 +5,7 @@ project(
 )
 
 NAME = 'IBus Tweaker'
-DESCRIPTION = 'Tweaker of IBus for orientation, theme, font, input mode and clipboard history\\n\\nFor support, please report any issues via the homepage link below.'
+INFO = 'Tweaker of IBus for orientation, theme, font, input mode and clipboard history'
 EID = meson.project_name().replace('gnome-shell-extension-', '')
 UUID = EID + '@tuberry.github.com'
 EGO = 'EGO=2820' / EID
