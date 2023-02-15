@@ -15,7 +15,7 @@ Tweaker of IBus in GNOME Shell for orientation, theme, font, input mode and clip
 The latest and supported version should only work on the most current stable version of GNOME Shell.
 
 ```bash
-git clone https://github.com/tuberry/ibus-tweaker.git && cd ibus-tweaker
+git clone --recurse-submodules https://github.com/tuberry/ibus-tweaker.git && cd ibus-tweaker
 meson setup build && meson install -C build
 # meson setup build -Dtarget=system && meson install -C build # system-wide, default --prefix=/usr/local
 ```
