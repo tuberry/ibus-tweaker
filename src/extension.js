@@ -92,6 +92,12 @@ const TempPopup = {
 class IBusAutoSwitch {
     constructor(field) {
         this._bindSettings(field);
+        Main.inputMethod._fullReset = () => {
+            Main.inputMethod._context.set_content_type(0, 0);
+            Main.inputMethod._context.set_cursor_location(0, 0, 0, 0);
+            // Main.inputMethod._context.set_capabilities(0);
+            Main.inputMethod._context.reset();
+        };
         global.display.connectObject('notify::focus-window', () => this.toggleMode(), this);
         Main.overview.connectObject('hidden', () => this.setEmpty(), 'shown', () => this.setEmpty('#overview'), this); // ?? conflict other connects
     }
@@ -140,7 +146,6 @@ class IBusAutoSwitch {
 
     activateProp(key, state) {
         // FIXME: not working on Wayland since https://gitlab.gnome.org/GNOME/gnome-shell/-/issues/6062
-        // setTimeout(() => IBusManager.activateProperty(key, state ? 1 : 0), 50);
         IBusManager.activateProperty(key, state ? 1 : 0);
     }
 
@@ -176,6 +181,12 @@ class IBusAutoSwitch {
     }
 
     destroy() {
+        Main.inputMethod._fullReset = () => {
+            Main.inputMethod._context.set_content_type(0, 0);
+            Main.inputMethod._context.set_cursor_location(0, 0, 0, 0);
+            Main.inputMethod._context.set_capabilities(0);
+            Main.inputMethod._context.reset();
+        };
         this.shortcut = null;
         this._field.detach(this);
         Main.overview.disconnectObject(this);
@@ -459,6 +470,7 @@ class IBusClipPopup extends BoxPointer.BoxPointer {
     }
 
     destroy() {
+        this.hide();
         Main.popModal(this._grab);
         this._grab = null;
         super.destroy();
@@ -485,11 +497,11 @@ class IBusClipHistory {
         if(this._ptr) return;
         this._ptr = new IBusClipPopup(this.page_btn);
         this._ptr.connectObject('captured-event', this.onCapturedEvent.bind(this), this);
-        this._ptr._area.connectObject('cursor-up', () => (this.offset = -1),
-            'cursor-down', () => (this.offset = 1),
-            'next-page', () => (this.offset = this.page_size),
+        this._ptr._area.connectObject('cursor-up', () => { this.offset = -1; },
+            'cursor-down', () => { this.offset = 1; },
+            'next-page', () => { this.offset = this.page_size; },
             'candidate-clicked', this.candidateClicked.bind(this),
-            'previous-page', () => (this.offset = -this.page_size), this);
+            'previous-page', () => { this.offset = -this.page_size; }, this);
     }
 
     onClipboardChanged(_sel, type, _src) {
@@ -579,8 +591,8 @@ class IBusClipHistory {
     commitAt(index) {
         let [text] = this._lookup[this._start + index] || [undefined];
         if(!text) return;
-        clearTimeout(this._delayId);
-        this._delayId = setTimeout(() => IBusManager._panelService?.commit_text(IBus.Text.new_from_string(text)), 30);
+        clearTimeout(this._commitId);
+        this._commitId = setTimeout(() => IBusManager._panelService?.commit_text(IBus.Text.new_from_string(text)), 30);
     }
 
     deleteCurrent() {
@@ -622,7 +634,7 @@ class IBusClipHistory {
         this._field.detach(this);
         this.dispel();
         this.shortcut = null;
-        clearTimeout(this._delayId);
+        clearTimeout(this._commitId);
         global.display.get_selection().disconnectObject(this);
     }
 }
