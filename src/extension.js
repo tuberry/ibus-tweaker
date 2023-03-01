@@ -7,11 +7,11 @@ const Main = imports.ui.main;
 const PanelMenu = imports.ui.panelMenu;
 const BoxPointer = imports.ui.boxpointer;
 const { RunDialog } = imports.ui.runDialog;
-const IBusPopup = imports.ui.ibusCandidatePopup;
-const IBusManager = imports.misc.ibusManager.getIBusManager();
-const InputManager = imports.ui.status.keyboard.getInputSourceManager();
+const IBusCandidatePopup = imports.ui.ibusCandidatePopup;
 const { Shell, Clutter, Gio, GLib, Meta, IBus, Pango, St, GObject } = imports.gi;
 
+const IBusManager = imports.misc.ibusManager.getIBusManager();
+const InputManager = imports.ui.status.keyboard.getInputSourceManager();
 const LightProxy = Main.panel.statusArea.quickSettings._nightLight._proxy;
 const CandidatePopup = IBusManager._candidatePopup;
 const CandidateArea = CandidatePopup._candidateArea;
@@ -91,14 +91,9 @@ const TempPopup = {
 
 class IBusAutoSwitch {
     constructor(field) {
+        this.reset = true;
         this._bindSettings(field);
-        Main.inputMethod._fullReset = () => {
-            Main.inputMethod._context.set_content_type(0, 0);
-            Main.inputMethod._context.set_cursor_location(0, 0, 0, 0);
-            // Main.inputMethod._context.set_capabilities(0);
-            Main.inputMethod._context.reset();
-        };
-        global.display.connectObject('notify::focus-window', () => this.toggleMode(), this);
+        global.display.connectObject('notify::focus-window', () => this.toggleInputMode(), this);
         Main.overview.connectObject('hidden', () => this.setEmpty(), 'shown', () => this.setEmpty('#overview'), this); // ?? conflict other connects
     }
 
@@ -108,7 +103,29 @@ class IBusAutoSwitch {
             modes:    [Fields.INPUTMODES, 'value'],
             shortcut: [Fields.ENABLEDIALOG, 'boolean'],
         }, this);
-        this._modes = new Map(Object.entries(this.modes.recursiveUnpack()));
+    }
+
+    set modes(modes) {
+        if(this._modes) return;
+        this._modes = new Map(Object.entries(modes.recursiveUnpack()));
+    }
+
+    set reset(reset) {
+        if(reset) { // FIXME: workaround for https://gitlab.gnome.org/GNOME/gnome-shell/-/issues/6062
+            Main.inputMethod._fullReset = () => {
+                Main.inputMethod._context.set_content_type(0, 0);
+                Main.inputMethod._context.set_cursor_location(0, 0, 0, 0);
+                Main.inputMethod._context.set_capabilities(IBus.Capabilite.FOCUS);
+                Main.inputMethod._context.reset();
+            };
+        } else {
+            Main.inputMethod._fullReset = () => {
+                Main.inputMethod._context.set_content_type(0, 0);
+                Main.inputMethod._context.set_cursor_location(0, 0, 0, 0);
+                Main.inputMethod._context.set_capabilities(0);
+                Main.inputMethod._context.reset();
+            };
+        }
     }
 
     getInputMode(ps) {
@@ -145,52 +162,54 @@ class IBusAutoSwitch {
     }
 
     activateProp(key, state) {
-        // FIXME: not working on Wayland since https://gitlab.gnome.org/GNOME/gnome-shell/-/issues/6062
         IBusManager.activateProperty(key, state ? 1 : 0);
     }
 
     setEmpty(empty) {
         this._empty = empty;
-        this.toggleMode();
+        this.toggleInputMode();
     }
 
-    checkMode(win, id, mode) {
-        if(!this._modes.has(win)) this._modes.set(win, [id, mode]);
+    saveInputMode(win, id, mode) {
+        this._modes.set(win, [id, mode]);
+        // FIXME: Alt-Tab spamming focus-window signals on 44.beta?
+        // this.setf('modes', new GLib.Variant('a{s(ss)}', Object.fromEntries(this._modes)));
+    }
+
+    checkInputMode(win, id, mode) {
+        if(!win) return false;
+        if(!this._modes.has(win)) this.saveInputMode(win, id, mode);
         [this._id, this._mode] = this._modes.get(win);
         return this._id !== id || this._mode !== mode;
     }
 
-    toggleMode() {
+    toggleInputMode() {
         let { id, properties } = InputManager.currentSource;
         let mode = this.getInputMode(properties);
-        if(this.checkMode(this._win, id, mode)) this._modes.set(this._win, [id, mode]);
+        if(this.checkInputMode(this._win, id, mode)) this.saveInputMode(this._win, id, mode);
         let win = this._empty || global.display.focus_window?.wm_class?.toLowerCase();
-        if(win && this.checkMode(this._win = win, id, mode) && this._id === id) this.setInputMode(properties, this._mode);
+        if(this.checkInputMode(this._win = win, id, mode) && this._id === id) this.setInputMode(properties, this._mode);
     }
 
     set shortcut(shortcut) {
-        if(this._shortcut === shortcut) return;
-        if((this._shortcut = shortcut)) {
-            if(!Main.runDialog) Main.runDialog = new RunDialog();
+        this._keysId && Main.wm.removeKeybinding(Fields.RUNSHORTCUT);
+        this._keysId = shortcut && Main.wm.addKeybinding(Fields.RUNSHORTCUT, this._field.gset, Meta.KeyBindingFlags.NONE, Shell.ActionMode.ALL, () => this.openRunDialog());
+    }
+
+    openRunDialog() {
+        if(!this._initedRunDialog) {
+            Main.runDialog ??= new RunDialog();
             Main.runDialog.connectObject('notify::visible', () => this.setEmpty(Main.runDialog?.visible && '#run-dialog'), this);
-            Main.wm.addKeybinding(Fields.RUNSHORTCUT, this._field.gset, Meta.KeyBindingFlags.NONE, Shell.ActionMode.ALL, () => Main.openRunDialog());
-        } else {
-            Main.runDialog?.disconnectObject(this);
-            Main.wm.removeKeybinding(Fields.RUNSHORTCUT);
         }
+        Main.runDialog.open();
     }
 
     destroy() {
-        Main.inputMethod._fullReset = () => {
-            Main.inputMethod._context.set_content_type(0, 0);
-            Main.inputMethod._context.set_cursor_location(0, 0, 0, 0);
-            Main.inputMethod._context.set_capabilities(0);
-            Main.inputMethod._context.reset();
-        };
-        this.shortcut = null;
         this._field.detach(this);
+        this.reset = this.shortcut = null;
         Main.overview.disconnectObject(this);
         global.display.disconnectObject(this);
+        if(this._initedRunDialog) Main.runDialog.disconnectObject(this);
         this.setf('modes', new GLib.Variant('a{s(ss)}', Object.fromEntries(this._modes)));
     }
 }
@@ -228,8 +247,8 @@ class IBusFontSetting {
 class IBusOrientation {
     constructor(field) {
         this._originalSetOrientation = CandidateArea.setOrientation.bind(CandidateArea);
-        CandidateArea.setOrientation = noop;
         this._field = field.attach({ orientation: [Fields.ORIENTATION, 'uint'] }, this);
+        CandidateArea.setOrientation = noop;
     }
 
     set orientation(orientation) {
@@ -426,7 +445,7 @@ class IBusClipPopup extends BoxPointer.BoxPointer {
         this._auxText = new St.Label({ style_class: 'candidate-popup-text', visible: true });
         [this._preeditText, this._auxText].forEach(x => hbox.add(x));
         box.add(hbox);
-        this._candidateArea = new IBusPopup.CandidateArea();
+        this._candidateArea = new IBusCandidatePopup.CandidateArea();
         this._candidateArea.setOrientation(IBus.Orientation.VERTICAL);
         box.add(this._candidateArea);
         this.bin.set_child(box);
@@ -489,8 +508,8 @@ class IBusClipHistory {
     }
 
     set shortcut(shortcut) {
-        this._shortId && Main.wm.removeKeybinding(Fields.CLIPHISTCUT);
-        this._shortId = shortcut && Main.wm.addKeybinding(Fields.CLIPHISTCUT, this._field.gset, Meta.KeyBindingFlags.NONE, Shell.ActionMode.ALL, () => this.showLookupTable());
+        this._keysId && Main.wm.removeKeybinding(Fields.CLIPHISTCUT);
+        this._keysId = shortcut && Main.wm.addKeybinding(Fields.CLIPHISTCUT, this._field.gset, Meta.KeyBindingFlags.NONE, Shell.ActionMode.ALL, () => this.showLookupTable());
     }
 
     summon() {
