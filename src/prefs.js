@@ -7,8 +7,8 @@ const { Adw, Gtk, GObject } = imports.gi;
 
 const ExtensionUtils = imports.misc.extensionUtils;
 const Me = ExtensionUtils.getCurrentExtension();
-const _ = ExtensionUtils.gettext;
-const { Fields, Block } = Me.imports.fields;
+const { Field } = Me.imports.const;
+const { _ } = Me.imports.util;
 const UI = Me.imports.ui;
 
 function buildPrefsWidget() {
@@ -31,22 +31,22 @@ class IBusTweakerPrefs extends Adw.PreferencesGroup {
     }
 
     _buildWidgets() {
-        this._blk = new Block({
-            en_clip: [Fields.ENABLECLIP,    'active',   new Gtk.CheckButton()],
-            en_font: [Fields.USECUSTOMFONT, 'active',   new Gtk.CheckButton()],
-            switch:  [Fields.AUTOSWITCH,    'active',   new Gtk.CheckButton()],
-            en_dlg:  [Fields.ENABLEDIALOG,  'active',   new Gtk.CheckButton()],
-            en_thm:  [Fields.ENABLEMSTHEME, 'active',   new Gtk.CheckButton()],
-            en_ori:  [Fields.ENABLEORIEN,   'active',   new Gtk.CheckButton()],
-            page:    [Fields.PAGEBUTTON,    'active',   new Gtk.CheckButton()],
-            size:    [Fields.CLIPPAGESIZE,  'value',    new UI.Spin(4, 10, 1, _('Page size'))],
-            orient:  [Fields.ORIENTATION,   'selected', new UI.Drop([_('Vertical'), _('Horizontal')])],
-            font:    [Fields.CUSTOMFONT,    'font',     new Gtk.FontButton({ valign: Gtk.Align.CENTER })],
-            style:   [Fields.MSTHEMESTYLE,  'selected', new UI.Drop([_('Auto'), _('Light'), _('Dark'), _('System')])],
-            color:   [Fields.MSTHEMECOLOR,  'selected', new UI.Drop([_('Red'), _('Green'), _('Orange'), _('Blue'), _('Purple'), _('Turquoise'), _('Grey')])],
+        this._blk = new UI.Block({
+            en_clip: [Field.ENABLECLIP,    'active',   new Gtk.CheckButton()],
+            en_font: [Field.USECUSTOMFONT, 'active',   new Gtk.CheckButton()],
+            switch:  [Field.AUTOSWITCH,    'active',   new Gtk.CheckButton()],
+            en_dlg:  [Field.ENABLEDIALOG,  'active',   new Gtk.CheckButton()],
+            en_thm:  [Field.ENABLEMSTHEME, 'active',   new Gtk.CheckButton()],
+            en_ori:  [Field.ENABLEORIEN,   'active',   new Gtk.CheckButton()],
+            page:    [Field.PAGEBUTTON,    'active',   new Gtk.CheckButton()],
+            size:    [Field.CLIPPAGESIZE,  'value',    new UI.Spin(4, 10, 1, _('Page size'))],
+            orient:  [Field.ORIENTATION,   'selected', new UI.Drop([_('Vertical'), _('Horizontal')])],
+            font:    [Field.CUSTOMFONT,    'font',     new Gtk.FontButton({ valign: Gtk.Align.CENTER })],
+            style:   [Field.MSTHEMESTYLE,  'selected', new UI.Drop([_('Auto'), _('Light'), _('Dark'), _('System')])],
+            color:   [Field.MSTHEMECOLOR,  'selected', new UI.Drop([_('Red'), _('Green'), _('Orange'), _('Blue'), _('Purple'), _('Turquoise'), _('Grey')])],
         });
-        this._blk.c_keys = new UI.Keys(this._blk.gset, Fields.CLIPHISTCUT);
-        this._blk.d_keys = new UI.Keys(this._blk.gset, Fields.RUNSHORTCUT);
+        this._blk.c_keys = new UI.Keys(this._blk.gset, Field.CLIPHISTCUT);
+        this._blk.d_keys = new UI.Keys(this._blk.gset, Field.RUNSHORTCUT);
         this._blk.switch.bind_property('active', this._blk.en_dlg, 'sensitive', GObject.BindingFlags.DEFAULT);
         this._blk.switch.connect('notify::active', w => this._blk.d_keys.set_sensitive(w.active && this._blk.en_dlg.active));
         this._blk.en_dlg.set_sensitive(this._blk.switch.active);

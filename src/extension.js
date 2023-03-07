@@ -17,30 +17,17 @@ const CandidatePopup = IBusManager._candidatePopup;
 const CandidateArea = CandidatePopup._candidateArea;
 const ExtensionUtils = imports.misc.extensionUtils;
 const Me = ExtensionUtils.getCurrentExtension();
-const { Fields, Field } = Me.imports.fields;
+const { Fulu, Extension, Symbiont, DEventEmitter } = Me.imports.fubar;
+const { noop, _, fl, execute } = Me.imports.util;
+const { Field } = Me.imports.const;
 const Initial = Me.imports.initial;
-const _ = ExtensionUtils.gettext;
 
 const ClipTable = [];
 const Style = { AUTO: 0, LIGHT: 1, DARK: 2, SYSTEM: 3 };
 const Indices = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'];
 
-const noop = () => {};
 const compact = (s, d = [[/\n|\r/g, '\u21b5'], ['\t', '\u21e5']]) => d.length ? compact(s.replaceAll(...d.pop()), d) : s;
 const shrink = (t, m = 45) => t.length > m ? `${t.substring(0, m >> 1)}\u2026${t.substring(t.length - (m >> 1), t.length)}` : t;
-
-Gio._promisify(Gio.Subprocess.prototype, 'communicate_utf8_async');
-
-async function execute(cmd) {
-    let proc = new Gio.Subprocess({
-        argv: GLib.shell_parse_argv(cmd)[1],
-        flags: Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_PIPE,
-    });
-    proc.init(null);
-    let [stdout, stderr] = await proc.communicate_utf8_async(null, null);
-    if(proc.get_exit_status()) throw new Error(stderr.trim());
-    return stdout.trim();
-}
 
 function fuzzySearch(needle, haystack) {
     // Ref: https://github.com/bevacqua/fuzzysearch
@@ -89,19 +76,33 @@ const TempPopup = {
     _auxText: { style_class: 'candidate-popup-text' },
 };
 
-class IBusAutoSwitch {
-    constructor(field) {
-        this.reset = true;
-        this._bindSettings(field);
-        global.display.connectObject('notify::focus-window', () => this.toggleInputMode(), this);
-        Main.overview.connectObject('hidden', () => this.setEmpty(), 'shown', () => this.setEmpty('#overview'), this); // ?? conflict other connects
+class IBusAutoSwitch extends DEventEmitter {
+    constructor(fulu) {
+        super();
+        this._buildWidgets(fulu);
+        this._bindSettings();
     }
 
-    _bindSettings(field) {
-        this._field = field;
-        this._field.attach({
-            modes:    [Fields.INPUTMODES, 'value'],
-            shortcut: [Fields.ENABLEDIALOG, 'boolean'],
+    _buildWidgets(fulu) {
+        this.reset = true;
+        this._fulu = fulu;
+        global.display.connectObject('notify::focus-window', () => this.toggleInputMode(), this);
+        Main.overview.connectObject('hidden', () => this.setEmpty(), 'shown', () => this.setEmpty('#overview'), this); // ?? conflict other connects
+        this._sbt_k = new Symbiont(x => x && Main.wm.removeKeybinding(Field.RUNSHORTCUT), this,
+            x => x && Main.wm.addKeybinding(Field.RUNSHORTCUT, this._fulu.gset, Meta.KeyBindingFlags.NONE, Shell.ActionMode.ALL, () => this.openRunDialog()));
+        new Symbiont(() => {
+            this.reset = this.shortcut = null;
+            Main.overview.disconnectObject(this);
+            global.display.disconnectObject(this);
+            if(this._initedRunDialog) Main.runDialog.disconnectObject(this);
+            this.setf('modes', new GLib.Variant('a{s(ss)}', Object.fromEntries(this._modes)));
+        }, this);
+    }
+
+    _bindSettings() {
+        this._fulu.attach({
+            modes:    [Field.INPUTMODES, 'value'],
+            shortcut: [Field.ENABLEDIALOG, 'boolean'],
         }, this);
     }
 
@@ -115,7 +116,6 @@ class IBusAutoSwitch {
             Main.inputMethod._fullReset = () => {
                 Main.inputMethod._context.set_content_type(0, 0);
                 Main.inputMethod._context.set_cursor_location(0, 0, 0, 0);
-                Main.inputMethod._context.set_capabilities(IBus.Capabilite.FOCUS);
                 Main.inputMethod._context.reset();
             };
         } else {
@@ -192,8 +192,7 @@ class IBusAutoSwitch {
     }
 
     set shortcut(shortcut) {
-        this._keysId && Main.wm.removeKeybinding(Fields.RUNSHORTCUT);
-        this._keysId = shortcut && Main.wm.addKeybinding(Fields.RUNSHORTCUT, this._field.gset, Meta.KeyBindingFlags.NONE, Shell.ActionMode.ALL, () => this.openRunDialog());
+        this._sbt_k.reset(shortcut);
     }
 
     openRunDialog() {
@@ -203,20 +202,19 @@ class IBusAutoSwitch {
         }
         Main.runDialog.open();
     }
-
-    destroy() {
-        this._field.detach(this);
-        this.reset = this.shortcut = null;
-        Main.overview.disconnectObject(this);
-        global.display.disconnectObject(this);
-        if(this._initedRunDialog) Main.runDialog.disconnectObject(this);
-        this.setf('modes', new GLib.Variant('a{s(ss)}', Object.fromEntries(this._modes)));
-    }
 }
 
-class IBusFontSetting {
-    constructor(field) {
-        this._field = field.attach({ fontname: [Fields.CUSTOMFONT, 'string'] }, this);
+class IBusFontSetting extends DEventEmitter {
+    constructor(fulu) {
+        super();
+        this._fulu = fulu.attach({ fontname: [Field.CUSTOMFONT, 'string'] }, this);
+        new Symbiont(() => {
+            CandidatePopup.set_style('');
+            CandidateArea._candidateBoxes.forEach(x => {
+                x._candidateLabel.set_style('');
+                x._indexLabel.set_style('');
+            });
+        }, this);
     }
 
     set fontname(fontname) {
@@ -233,62 +231,55 @@ class IBusFontSetting {
             x._indexLabel.set_style(`padding: ${(1 - scale) * 2}em 0.25em 0 0;`);
         });
     }
-
-    destroy() {
-        this._field.detach(this);
-        CandidatePopup.set_style('');
-        CandidateArea._candidateBoxes.forEach(x => {
-            x._candidateLabel.set_style('');
-            x._indexLabel.set_style('');
-        });
-    }
 }
 
-class IBusOrientation {
-    constructor(field) {
+class IBusOrientation extends DEventEmitter {
+    constructor(fulu) {
+        super();
         this._originalSetOrientation = CandidateArea.setOrientation.bind(CandidateArea);
-        this._field = field.attach({ orientation: [Fields.ORIENTATION, 'uint'] }, this);
+        this._fulu = fulu.attach({ orientation: [Field.ORIENTATION, 'uint'] }, this);
         CandidateArea.setOrientation = noop;
+        new Symbiont(() => { CandidateArea.setOrientation = this._originalSetOrientation; }, this);
     }
 
     set orientation(orientation) {
         this._originalSetOrientation(orientation ? IBus.Orientation.HORIZONTAL : IBus.Orientation.VERTICAL);
     }
-
-    destroy() {
-        this._field.detach(this);
-        CandidateArea.setOrientation = this._originalSetOrientation;
-    }
 }
 
-class IBusPageButton {
+class IBusPageButton extends DEventEmitter {
     constructor() {
+        super();
         CandidateArea._buttonBox.set_style('border-width: 0;');
         CandidateArea._previousButton.hide();
         CandidateArea._nextButton.hide();
-    }
-
-    destroy() {
-        CandidateArea._buttonBox.set_style('');
-        CandidateArea._previousButton.show();
-        CandidateArea._nextButton.show();
+        new Symbiont(() => {
+            CandidateArea._buttonBox.set_style('');
+            CandidateArea._previousButton.show();
+            CandidateArea._nextButton.show();
+        }, this);
     }
 }
 
-class IBusThemeManager {
-    constructor(field) {
+class IBusThemeManager extends DEventEmitter {
+    constructor(fulu) {
+        super();
         this._replaceStyle();
-        this._bindSettings(field);
+        this._bindSettings(fulu);
         this._syncNightLight();
+        new Symbiont(() => {
+            LightProxy.disconnectObject(this);
+            this._restoreStyle();
+        }, this);
     }
 
-    _bindSettings(field) {
-        this._tfield = new Field({
+    _bindSettings(fulu) {
+        this._fulu_t = new Fulu({
             scheme: ['color-scheme', 'string', x => x === 'prefer-dark'],
         }, 'org.gnome.desktop.interface', this, 'murkey');
-        this._field = field.attach({
-            color: [Fields.MSTHEMECOLOR, 'uint', x => this._palette[x]],
-            style: [Fields.MSTHEMESTYLE, 'uint'],
+        this._fulu = fulu.attach({
+            color: [Field.MSTHEMECOLOR, 'uint', x => this._palette[x]],
+            style: [Field.MSTHEMESTYLE, 'uint'],
         }, this, 'murkey');
         LightProxy.connectObject('g-properties-changed', (_l, p) => p.lookup_value('NightLightActive', null) && this._syncNightLight(), this);
     }
@@ -348,26 +339,32 @@ class IBusThemeManager {
         }
         addStyleClass(TempPopup, TempPopup, CandidatePopup);
     }
-
-    destroy() {
-        ['_field', '_tfield'].forEach(x => this[x].detach(this));
-        LightProxy.disconnectObject(this);
-        this._restoreStyle();
-    }
 }
 
-class UpdatesIndicator {
-    constructor(field) {
-        this._bindSettings(field);
+class UpdatesIndicator extends DEventEmitter {
+    constructor(fulu) {
+        super();
+        this._bindSettings(fulu);
         this._addIndicator();
+        this._buildWidgets();
         this._checkUpdates();
-        this._checkUpdatesId = setInterval(() => this._checkUpdates(), 60 * 60 * 1000);
+        this._sbt_c.reset();
     }
 
-    _bindSettings(field) {
-        this._field = field.attach({
-            updatesdir: [Fields.UPDATESDIR,   'string'],
-            updatescmd: [Fields.CHECKUPDATES, 'string'],
+    _buildWidgets() {
+        this._sbt_f = new Symbiont(x => clearTimeout(x), this, () => setTimeout(() => this._checkUpdates(), 10 * 1000));
+        this._sbt_c = new Symbiont(x => clearInterval(x), this, () => setInterval(() => this._checkUpdates(), 60 * 60 * 1000));
+        new Symbiont(() => {
+            this._checkUpdated();
+            this._button.destroy();
+            this._button = null;
+        }, this);
+    }
+
+    _bindSettings(fulu) {
+        this._fulu = fulu.attach({
+            updatesdir: [Field.UPDATESDIR,   'string'],
+            updatescmd: [Field.CHECKUPDATES, 'string'],
         }, this);
     }
 
@@ -380,13 +377,9 @@ class UpdatesIndicator {
     _showUpdates(count) {
         this._checkUpdated();
         if(count) {
-            let dir = Gio.File.new_for_path(this.updatesdir);
+            let dir = fl(this.updatesdir);
             this._fileMonitor = dir.monitor_directory(Gio.FileMonitorFlags.NONE, null);
-            this._fileMonitor.connect('changed', (_o, _s, _t, e) => {
-                if(e !== Gio.FileMonitorEvent.CHANGES_DONE_HINT) return;
-                clearTimeout(this._fileMonitorId);
-                this._fileMonitorId = setTimeout(() => this._checkUpdates(), 10 * 1000);
-            });
+            this._fileMonitor.connect('changed', (_o, _s, _t, e) => e === Gio.FileMonitorEvent.CHANGES_DONE_HINT && this._sbt_f.reset());
             this._button.label.set_text(count.toString());
             this._button.show();
         } else {
@@ -411,15 +404,6 @@ class UpdatesIndicator {
         this._fileMonitor?.cancel();
         this._fileMonitor = null;
     }
-
-    destroy() {
-        this._field.detach(this);
-        clearTimeout(this._fileMonitorId);
-        clearInterval(this._checkUpdatesId);
-        this._checkUpdated();
-        this._button.destroy();
-        this._button = null;
-    }
 }
 
 class IBusClipPopup extends BoxPointer.BoxPointer {
@@ -436,6 +420,11 @@ class IBusClipPopup extends BoxPointer.BoxPointer {
         Main.layoutManager.addChrome(this);
         global.focus_manager.add_group(this);
         global.stage.set_key_focus(this);
+        new Symbiont(() => {
+            this.hide();
+            Main.popModal(this._grab);
+            this._grab = null;
+        }, this);
     }
 
     _buildWidgets(page_btn) {
@@ -487,29 +476,29 @@ class IBusClipPopup extends BoxPointer.BoxPointer {
         this.get_parent().set_child_above_sibling(this, null);
         this._grab = Main.pushModal(this, { actionMode: Shell.ActionMode.POPUP });
     }
-
-    destroy() {
-        this.hide();
-        Main.popModal(this._grab);
-        this._grab = null;
-        super.destroy();
-    }
 }
 
-class IBusClipHistory {
-    constructor(field) {
-        this._field = field;
-        this._field.attach({
-            page_size: [Fields.CLIPPAGESIZE, 'uint'],
-            page_btn:  [Fields.PAGEBUTTON, 'boolean'],
-        }, this);
-        global.display.get_selection().connectObject('owner-changed', this.onClipboardChanged.bind(this), this);
-        this.shortcut = true;
+class IBusClipHistory extends DEventEmitter {
+    constructor(fulu) {
+        super();
+        this._buildWidgets(fulu);
+        this._sbt_k.reset(true);
+        this._bindSettings();
     }
 
-    set shortcut(shortcut) {
-        this._keysId && Main.wm.removeKeybinding(Fields.CLIPHISTCUT);
-        this._keysId = shortcut && Main.wm.addKeybinding(Fields.CLIPHISTCUT, this._field.gset, Meta.KeyBindingFlags.NONE, Shell.ActionMode.ALL, () => this.showLookupTable());
+    _buildWidgets(fulu) {
+        this._fulu = fulu;
+        this._sbt_k = new Symbiont(x => x && Main.wm.removeKeybinding(Field.CLIPHISTCUT), this,
+            x => x && Main.wm.addKeybinding(Field.CLIPHISTCUT, this._fulu.gset, Meta.KeyBindingFlags.NONE, Shell.ActionMode.ALL, () => this.showLookupTable()));
+        global.display.get_selection().connectObject('owner-changed', this.onClipboardChanged.bind(this), this);
+        new Symbiont(() => { this.dispel(); global.display.get_selection().disconnectObject(this); }, this);
+    }
+
+    _bindSettings() {
+        this._fulu.attach({
+            page_size: [Field.CLIPPAGESIZE, 'uint'],
+            page_btn:  [Field.PAGEBUTTON, 'boolean'],
+        }, this);
     }
 
     summon() {
@@ -648,64 +637,43 @@ class IBusClipHistory {
     dispel() {
         if(this._ptr) this._ptr.destroy(), this._ptr = null;
     }
-
-    destroy() {
-        this._field.detach(this);
-        this.dispel();
-        this.shortcut = null;
-        clearTimeout(this._commitId);
-        global.display.get_selection().disconnectObject(this);
-    }
 }
-class Extensions {
+
+class IBusTweaker extends DEventEmitter {
     constructor() {
-        this._tweaks = {};
+        super();
+        this._buildWidgets();
         this._bindSettings();
     }
 
+    _buildWidgets() {
+        this._tweaks = {};
+        this._fulu = new Fulu({}, ExtensionUtils.getSettings(), this, 'props');
+        new Symbiont(() => Object.keys(this._tweaks).forEach(x => { this.props = [x, false, null]; }), this);
+    }
+
     _bindSettings() {
-        this._field = new Field({}, ExtensionUtils.getSettings(), this, 'props');
-        this._field.attach({
-            clip:   [Fields.ENABLECLIP,    'boolean', IBusClipHistory],
-            font:   [Fields.USECUSTOMFONT, 'boolean', IBusFontSetting],
-            input:  [Fields.AUTOSWITCH,    'boolean', IBusAutoSwitch],
-            orien:  [Fields.ENABLEORIEN,   'boolean', IBusOrientation],
-            pgbtn:  [Fields.PAGEBUTTON,    'boolean', IBusPageButton],
-            theme:  [Fields.ENABLEMSTHEME, 'boolean', IBusThemeManager],
-            update: [Fields.ENABLEUPDATES, 'boolean', UpdatesIndicator],
+        this._fulu.attach({
+            clip:   [Field.ENABLECLIP,    'boolean', IBusClipHistory],
+            font:   [Field.USECUSTOMFONT, 'boolean', IBusFontSetting],
+            input:  [Field.AUTOSWITCH,    'boolean', IBusAutoSwitch],
+            orien:  [Field.ENABLEORIEN,   'boolean', IBusOrientation],
+            pgbtn:  [Field.PAGEBUTTON,    'boolean', IBusPageButton],
+            theme:  [Field.ENABLEMSTHEME, 'boolean', IBusThemeManager],
+            update: [Field.ENABLEUPDATES, 'boolean', UpdatesIndicator],
         }, this, 'props');
     }
 
     set props([k, v, out]) {
         if(v) {
-            this._tweaks[k] ??= new out(this._field);
+            this._tweaks[k] ??= new out(this._fulu);
         } else {
             this._tweaks[k]?.destroy();
             this._tweaks[k] = null;
         }
     }
-
-    destroy() {
-        this._field.detach(this);
-        for(let x in this._tweaks) this.props = [x, false, null];
-    }
-}
-
-class Extension {
-    constructor() {
-        ExtensionUtils.initTranslations();
-    }
-
-    enable() {
-        this._ext = new Extensions();
-    }
-
-    disable() {
-        this._ext.destroy();
-        this._ext = null;
-    }
 }
 
 function init() {
-    return new Extension();
+    return new Extension(IBusTweaker);
 }
