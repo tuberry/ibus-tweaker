@@ -17,7 +17,7 @@ const CandidatePopup = IBusManager._candidatePopup;
 const CandidateArea = CandidatePopup._candidateArea;
 const ExtensionUtils = imports.misc.extensionUtils;
 const Me = ExtensionUtils.getCurrentExtension();
-const { Fulu, Extension, Symbiont, DEventEmitter } = Me.imports.fubar;
+const { Fulu, Extension, DEventEmitter, symbiose, omit, onus } = Me.imports.fubar;
 const { noop, _, fl, execute } = Me.imports.util;
 const { Field } = Me.imports.const;
 const Initial = Me.imports.initial;
@@ -86,23 +86,18 @@ class IBusAutoSwitch extends DEventEmitter {
     _buildWidgets(fulu) {
         this.reset = true;
         this._fulu = fulu;
-        global.display.connectObject('notify::focus-window', () => this.toggleInputMode(), this);
-        Main.overview.connectObject('hidden', () => this.setEmpty(), 'shown', () => this.setEmpty('#overview'), this); // ?? conflict other connects
-        this._sbt_k = new Symbiont(x => x && Main.wm.removeKeybinding(Field.RUNSHORTCUT), this,
-            x => x && Main.wm.addKeybinding(Field.RUNSHORTCUT, this._fulu.gset, Meta.KeyBindingFlags.NONE, Shell.ActionMode.ALL, () => this.openRunDialog()));
-        new Symbiont(() => {
-            this.reset = this.shortcut = null;
-            Main.overview.disconnectObject(this);
-            global.display.disconnectObject(this);
-            if(this._initedRunDialog) Main.runDialog.disconnectObject(this);
-            this.setf('modes', new GLib.Variant('a{s(ss)}', Object.fromEntries(this._modes)));
-        }, this);
+        global.display.connectObject('notify::focus-window', () => this.toggleInputMode(), onus(this));
+        Main.overview.connectObject('hidden', () => this.setEmpty(), 'shown', () => this.setEmpty('#overview'), onus(this));
+        this._sbt = symbiose(this, () => { omit(this, 'reset'); this._fulu.set('modes', new GLib.Variant('a{s(ss)}', Object.fromEntries(this._modes)), this); }, {
+            keys: [x => x && Main.wm.removeKeybinding(Field.RKYS),
+                x => x && Main.wm.addKeybinding(Field.RKYS, this._fulu.gset, Meta.KeyBindingFlags.NONE, Shell.ActionMode.ALL, () => this.openRunDialog())],
+        });
     }
 
     _bindSettings() {
         this._fulu.attach({
-            modes:    [Field.INPUTMODES, 'value'],
-            shortcut: [Field.ENABLEDIALOG, 'boolean'],
+            modes:    [Field.IPMS, 'value'],
+            shortcut: [Field.DLG, 'boolean'],
         }, this);
     }
 
@@ -112,7 +107,9 @@ class IBusAutoSwitch extends DEventEmitter {
     }
 
     set reset(reset) {
-        if(reset) { // FIXME: workaround for https://gitlab.gnome.org/GNOME/gnome-shell/-/issues/6062
+        // FIXME: workaround for https://gitlab.gnome.org/GNOME/gnome-shell/-/issues/6062
+        // MR to fix: https://gitlab.gnome.org/GNOME/gnome-shell/-/merge_requests/2666
+        if(reset) {
             Main.inputMethod._fullReset = () => {
                 Main.inputMethod._context.set_content_type(0, 0);
                 Main.inputMethod._context.set_cursor_location(0, 0, 0, 0);
@@ -173,7 +170,7 @@ class IBusAutoSwitch extends DEventEmitter {
     saveInputMode(win, id, mode) {
         this._modes.set(win, [id, mode]);
         // FIXME: Alt-Tab spamming focus-window signals on 44.beta?
-        // this.setf('modes', new GLib.Variant('a{s(ss)}', Object.fromEntries(this._modes)));
+        // this._fulu.set('modes', new GLib.Variant('a{s(ss)}', Object.fromEntries(this._modes)), this);
     }
 
     checkInputMode(win, id, mode) {
@@ -192,13 +189,13 @@ class IBusAutoSwitch extends DEventEmitter {
     }
 
     set shortcut(shortcut) {
-        this._sbt_k.reset(shortcut);
+        this._sbt.keys.revive(shortcut);
     }
 
     openRunDialog() {
-        if(!this._initedRunDialog) {
-            Main.runDialog ??= new RunDialog();
-            Main.runDialog.connectObject('notify::visible', () => this.setEmpty(Main.runDialog?.visible && '#run-dialog'), this);
+        if(!Main.runDialog) {
+            Main.runDialog = new RunDialog();
+            Main.runDialog.connectObject('notify::visible', () => this.setEmpty(Main.runDialog.visible && '#run-dialog'), onus(this));
         }
         Main.runDialog.open();
     }
@@ -207,14 +204,11 @@ class IBusAutoSwitch extends DEventEmitter {
 class IBusFontSetting extends DEventEmitter {
     constructor(fulu) {
         super();
-        this._fulu = fulu.attach({ fontname: [Field.CUSTOMFONT, 'string'] }, this);
-        new Symbiont(() => {
+        this._fulu = fulu.attach({ fontname: [Field.FNTS, 'string'] }, this);
+        symbiose(this, () => {
             CandidatePopup.set_style('');
-            CandidateArea._candidateBoxes.forEach(x => {
-                x._candidateLabel.set_style('');
-                x._indexLabel.set_style('');
-            });
-        }, this);
+            CandidateArea._candidateBoxes.forEach(x => x._candidateLabel.set_style('') && x._indexLabel.set_style(''));
+        });
     }
 
     set fontname(fontname) {
@@ -236,10 +230,10 @@ class IBusFontSetting extends DEventEmitter {
 class IBusOrientation extends DEventEmitter {
     constructor(fulu) {
         super();
+        symbiose(this, () => { CandidateArea.setOrientation = this._originalSetOrientation; });
         this._originalSetOrientation = CandidateArea.setOrientation.bind(CandidateArea);
-        this._fulu = fulu.attach({ orientation: [Field.ORIENTATION, 'uint'] }, this);
+        this._fulu = fulu.attach({ orientation: [Field.ORNS, 'uint'] }, this);
         CandidateArea.setOrientation = noop;
-        new Symbiont(() => { CandidateArea.setOrientation = this._originalSetOrientation; }, this);
     }
 
     set orientation(orientation) {
@@ -253,11 +247,11 @@ class IBusPageButton extends DEventEmitter {
         CandidateArea._buttonBox.set_style('border-width: 0;');
         CandidateArea._previousButton.hide();
         CandidateArea._nextButton.hide();
-        new Symbiont(() => {
+        symbiose(this, () => {
             CandidateArea._buttonBox.set_style('');
             CandidateArea._previousButton.show();
             CandidateArea._nextButton.show();
-        }, this);
+        });
     }
 }
 
@@ -267,10 +261,7 @@ class IBusThemeManager extends DEventEmitter {
         this._replaceStyle();
         this._bindSettings(fulu);
         this._syncNightLight();
-        new Symbiont(() => {
-            LightProxy.disconnectObject(this);
-            this._restoreStyle();
-        }, this);
+        symbiose(this, () => this._restoreStyle());
     }
 
     _bindSettings(fulu) {
@@ -278,10 +269,10 @@ class IBusThemeManager extends DEventEmitter {
             scheme: ['color-scheme', 'string', x => x === 'prefer-dark'],
         }, 'org.gnome.desktop.interface', this, 'murkey');
         this._fulu = fulu.attach({
-            color: [Field.MSTHEMECOLOR, 'uint', x => this._palette[x]],
-            style: [Field.MSTHEMESTYLE, 'uint'],
+            color: [Field.THMS, 'uint', x => this._palette[x]],
+            style: [Field.TSTL, 'uint'],
         }, this, 'murkey');
-        LightProxy.connectObject('g-properties-changed', (_l, p) => p.lookup_value('NightLightActive', null) && this._syncNightLight(), this);
+        LightProxy.connectObject('g-properties-changed', () => this._syncNightLight(), onus(this));
     }
 
     _syncNightLight() {
@@ -348,23 +339,21 @@ class UpdatesIndicator extends DEventEmitter {
         this._addIndicator();
         this._buildWidgets();
         this._checkUpdates();
-        this._sbt_c.reset();
+        this._sbt.cycle.revive();
     }
 
     _buildWidgets() {
-        this._sbt_f = new Symbiont(x => clearTimeout(x), this, () => setTimeout(() => this._checkUpdates(), 10 * 1000));
-        this._sbt_c = new Symbiont(x => clearInterval(x), this, () => setInterval(() => this._checkUpdates(), 60 * 60 * 1000));
-        new Symbiont(() => {
-            this._checkUpdated();
-            this._button.destroy();
-            this._button = null;
-        }, this);
+        this._sbt = symbiose(this, () => omit(this, '_btn'), {
+            check: [x => clearTimeout(x), () => setTimeout(() => this._checkUpdates(), 10 * 1000)],
+            cycle: [x => clearInterval(x), () => setInterval(() => this._checkUpdates(), 60 * 60 * 1000)],
+            watch: [x => x && x.cancel(), x => x && fl(this.updatesdir).monitor(Gio.FileMonitorFlags.WATCH_MOVES, null)],
+        });
     }
 
     _bindSettings(fulu) {
         this._fulu = fulu.attach({
-            updatesdir: [Field.UPDATESDIR,   'string'],
-            updatescmd: [Field.CHECKUPDATES, 'string'],
+            updatesdir: [Field.UPDR, 'string'],
+            updatescmd: [Field.UCMD, 'string'],
         }, this);
     }
 
@@ -375,34 +364,24 @@ class UpdatesIndicator extends DEventEmitter {
     }
 
     _showUpdates(count) {
-        this._checkUpdated();
+        this._sbt.watch.revive(count)?.connect?.('changed', (...xs) => xs[3] === Gio.FileMonitorEvent.CHANGES_DONE_HINT && this._sbt.check.revive());
         if(count) {
-            let dir = fl(this.updatesdir);
-            this._fileMonitor = dir.monitor_directory(Gio.FileMonitorFlags.NONE, null);
-            this._fileMonitor.connect('changed', (_o, _s, _t, e) => e === Gio.FileMonitorEvent.CHANGES_DONE_HINT && this._sbt_f.reset());
-            this._button.label.set_text(count.toString());
-            this._button.show();
+            this._btn.label.set_text(count.toString());
+            this._btn.show();
         } else {
-            this._button.hide();
+            this._btn.hide();
         }
     }
 
     _addIndicator() {
-        this._button = new PanelMenu.Button(0, Me.metadata.uuid, true);
-        this._button.reactive = false;
+        this._btn = Main.panel.addToStatusArea(Me.metadata.uuid, new PanelMenu.Button(0, Me.metadata.uuid, true), 5, 'center');
         let box = new St.BoxLayout({ style_class: 'panel-status-menu-box' });
-        let icon = new St.Icon({ y_expand: false, style_class: 'system-status-icon', icon_name: 'software-update-available-symbolic' });
-        this._button.label = new St.Label({ y_expand: false, y_align: Clutter.ActorAlign.CENTER });
-        box.add_child(icon);
-        box.add_child(this._button.label);
-        this._button.add_actor(box);
-        Main.panel.addToStatusArea(Me.metadata.uuid, this._button, 5, 'center');
-        this._button.hide();
-    }
-
-    _checkUpdated() {
-        this._fileMonitor?.cancel();
-        this._fileMonitor = null;
+        let icon = new St.Icon({ style_class: 'system-status-icon', icon_name: 'software-update-available-symbolic' });
+        this._btn.label = new St.Label({ y_align: Clutter.ActorAlign.CENTER });
+        [icon, this._btn.label].forEach(x => box.add_child(x));
+        this._btn.reactive = false;
+        this._btn.add_actor(box);
+        this._btn.hide();
     }
 }
 
@@ -420,11 +399,6 @@ class IBusClipPopup extends BoxPointer.BoxPointer {
         Main.layoutManager.addChrome(this);
         global.focus_manager.add_group(this);
         global.stage.set_key_focus(this);
-        new Symbiont(() => {
-            this.hide();
-            Main.popModal(this._grab);
-            this._grab = null;
-        }, this);
     }
 
     _buildWidgets(page_btn) {
@@ -469,12 +443,12 @@ class IBusClipPopup extends BoxPointer.BoxPointer {
         return this._candidateArea;
     }
 
-    _show() {
+    summon() {
         this._candidateArea.visible = true;
         this.setPosition(CandidatePopup._dummyCursor, 0);
         this.open(BoxPointer.PopupAnimation.NONE);
         this.get_parent().set_child_above_sibling(this, null);
-        this._grab = Main.pushModal(this, { actionMode: Shell.ActionMode.POPUP });
+        Main.pushModal(this, { actionMode: Shell.ActionMode.POPUP });
     }
 }
 
@@ -482,34 +456,35 @@ class IBusClipHistory extends DEventEmitter {
     constructor(fulu) {
         super();
         this._buildWidgets(fulu);
-        this._sbt_k.reset(true);
+        this._sbt.keys.revive(true);
         this._bindSettings();
     }
 
     _buildWidgets(fulu) {
         this._fulu = fulu;
-        this._sbt_k = new Symbiont(x => x && Main.wm.removeKeybinding(Field.CLIPHISTCUT), this,
-            x => x && Main.wm.addKeybinding(Field.CLIPHISTCUT, this._fulu.gset, Meta.KeyBindingFlags.NONE, Shell.ActionMode.ALL, () => this.showLookupTable()));
-        global.display.get_selection().connectObject('owner-changed', this.onClipboardChanged.bind(this), this);
-        new Symbiont(() => { this.dispel(); global.display.get_selection().disconnectObject(this); }, this);
+        this._sbt = symbiose(this, () => this.dispel(), {
+            keys: [x => x && Main.wm.removeKeybinding(Field.CKYS),
+                x => x && Main.wm.addKeybinding(Field.CKYS, this._fulu.gset, Meta.KeyBindingFlags.NONE, Shell.ActionMode.ALL, () => this.showLookupTable())],
+        });
+        global.display.get_selection().connectObject('owner-changed', this.onClipboardChanged.bind(this), onus(this));
     }
 
     _bindSettings() {
         this._fulu.attach({
-            page_size: [Field.CLIPPAGESIZE, 'uint'],
-            page_btn:  [Field.PAGEBUTTON, 'boolean'],
+            page_size: [Field.CLPS, 'uint'],
+            page_btn:  [Field.PBTN, 'boolean'],
         }, this);
     }
 
     summon() {
         if(this._ptr) return;
         this._ptr = new IBusClipPopup(this.page_btn);
-        this._ptr.connectObject('captured-event', this.onCapturedEvent.bind(this), this);
+        this._ptr.connectObject('captured-event', this.onCapturedEvent.bind(this), onus(this));
         this._ptr._area.connectObject('cursor-up', () => { this.offset = -1; },
             'cursor-down', () => { this.offset = 1; },
             'next-page', () => { this.offset = this.page_size; },
             'candidate-clicked', this.candidateClicked.bind(this),
-            'previous-page', () => { this.offset = -this.page_size; }, this);
+            'previous-page', () => { this.offset = -this.page_size; }, onus(this));
     }
 
     onClipboardChanged(_sel, type, _src) {
@@ -588,7 +563,7 @@ class IBusClipHistory extends DEventEmitter {
         this._preedit = '';
         this._lookup = [...ClipTable];
         this.cursor = 0;
-        this._ptr._show();
+        this._ptr.summon();
     }
 
     candidateClicked(_area, index) {
@@ -635,7 +610,7 @@ class IBusClipHistory extends DEventEmitter {
     }
 
     dispel() {
-        if(this._ptr) this._ptr.destroy(), this._ptr = null;
+        omit(this, '_ptr');
     }
 }
 
@@ -649,28 +624,24 @@ class IBusTweaker extends DEventEmitter {
     _buildWidgets() {
         this._tweaks = {};
         this._fulu = new Fulu({}, ExtensionUtils.getSettings(), this, 'props');
-        new Symbiont(() => Object.keys(this._tweaks).forEach(x => { this.props = [x, false, null]; }), this);
+        symbiose(this, () => omit(this._tweaks, ...Object.keys(this._tweaks)));
     }
 
     _bindSettings() {
         this._fulu.attach({
-            clip:   [Field.ENABLECLIP,    'boolean', IBusClipHistory],
-            font:   [Field.USECUSTOMFONT, 'boolean', IBusFontSetting],
-            input:  [Field.AUTOSWITCH,    'boolean', IBusAutoSwitch],
-            orien:  [Field.ENABLEORIEN,   'boolean', IBusOrientation],
-            pgbtn:  [Field.PAGEBUTTON,    'boolean', IBusPageButton],
-            theme:  [Field.ENABLEMSTHEME, 'boolean', IBusThemeManager],
-            update: [Field.ENABLEUPDATES, 'boolean', UpdatesIndicator],
+            clip:   [Field.CLP,  'boolean', IBusClipHistory],
+            font:   [Field.FNT,  'boolean', IBusFontSetting],
+            input:  [Field.ATSW, 'boolean', IBusAutoSwitch],
+            orien:  [Field.ORN,  'boolean', IBusOrientation],
+            pgbtn:  [Field.PBTN, 'boolean', IBusPageButton],
+            theme:  [Field.THM,  'boolean', IBusThemeManager],
+            update: [Field.UPD,  'boolean', UpdatesIndicator],
         }, this, 'props');
     }
 
     set props([k, v, out]) {
-        if(v) {
-            this._tweaks[k] ??= new out(this._fulu);
-        } else {
-            this._tweaks[k]?.destroy();
-            this._tweaks[k] = null;
-        }
+        if(v) this._tweaks[k] ??= new out(this._fulu);
+        else omit(this._tweaks, k);
     }
 }
 
