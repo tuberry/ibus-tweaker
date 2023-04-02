@@ -20,14 +20,14 @@ const Me = ExtensionUtils.getCurrentExtension();
 const { Fulu, Extension, DEventEmitter, symbiose, omit, onus } = Me.imports.fubar;
 const { noop, _, fl, execute } = Me.imports.util;
 const { Field } = Me.imports.const;
-const Initial = Me.imports.initial;
+const Pinyin = Me.imports.pinyin;
 
-const ClipTable = [];
+const ClipHist = [];
 const Style = { AUTO: 0, LIGHT: 1, DARK: 2, SYSTEM: 3 };
 const Indices = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'];
 
-const compact = (s, d = [[/\n|\r/g, '\u21b5'], ['\t', '\u21e5']]) => d.length ? compact(s.replaceAll(...d.pop()), d) : s;
-const shrink = (t, m = 45) => t.length > m ? `${t.substring(0, m >> 1)}\u2026${t.substring(t.length - (m >> 1), t.length)}` : t;
+const ellipsize = (s, l = 20) => s.length > 2 * l ? `${s.slice(0, l)}\u2026${s.slice(-l)}` : s;
+const visibilize = (s, p = [[/\n|\r/g, '\u21b5'], ['\t', '\u21e5']]) => p.reduce((a, x) => a.replaceAll(...x), s);
 
 function fuzzySearch(needle, haystack) {
     // Ref: https://github.com/bevacqua/fuzzysearch
@@ -344,8 +344,8 @@ class UpdatesIndicator extends DEventEmitter {
 
     _buildWidgets() {
         this._sbt = symbiose(this, () => omit(this, '_btn'), {
-            check: [x => clearTimeout(x), () => setTimeout(() => this._checkUpdates(), 10 * 1000)],
-            cycle: [x => clearInterval(x), () => setInterval(() => this._checkUpdates(), 60 * 60 * 1000)],
+            check: [clearTimeout, () => setTimeout(() => this._checkUpdates(), 10 * 1000)],
+            cycle: [clearInterval, () => setInterval(() => this._checkUpdates(), 60 * 60 * 1000)],
             watch: [x => x && x.cancel(), x => x && fl(this.updatesdir).monitor(Gio.FileMonitorFlags.WATCH_MOVES, null)],
         });
     }
@@ -465,6 +465,7 @@ class IBusClipHistory extends DEventEmitter {
         this._sbt = symbiose(this, () => this.dispel(), {
             keys: [x => x && Main.wm.removeKeybinding(Field.CKYS),
                 x => x && Main.wm.addKeybinding(Field.CKYS, this._fulu.gset, Meta.KeyBindingFlags.NONE, Shell.ActionMode.ALL, () => this.showLookupTable())],
+            commit: [clearTimeout, x => x && setTimeout(() => IBusManager._panelService?.commit_text(IBus.Text.new_from_string(x)), 30)],
         });
         global.display.get_selection().connectObject('owner-changed', this.onClipboardChanged.bind(this), onus(this));
     }
@@ -491,12 +492,12 @@ class IBusClipHistory extends DEventEmitter {
         if(type !== St.ClipboardType.CLIPBOARD) return;
         St.Clipboard.get_default().get_text(St.ClipboardType.CLIPBOARD, (_clip, text) => {
             if(!text) return;
-            let index = ClipTable.findIndex(([x]) => x === text);
+            let index = ClipHist.findIndex(([x]) => x === text);
             if(index < 0) {
-                ClipTable.unshift([text, compact(shrink(text)), Initial.s2pyi(text.toLowerCase())]);
-                while(ClipTable.length > 64) ClipTable.pop();
+                ClipHist.unshift([text, visibilize(ellipsize(text)), Pinyin.s2py(text.toLowerCase())]);
+                while(ClipHist.length > 64) ClipHist.pop();
             } else if(index > 0) {
-                [ClipTable[0], ClipTable[index]] = [ClipTable[index], ClipTable[0]];
+                [ClipHist[0], ClipHist[index]] = [ClipHist[index], ClipHist[0]];
             }
         });
     }
@@ -561,7 +562,7 @@ class IBusClipHistory extends DEventEmitter {
         if(!IBusManager._ready) return;
         this.summon();
         this._preedit = '';
-        this._lookup = [...ClipTable];
+        this._lookup = [...ClipHist];
         this.cursor = 0;
         this._ptr.summon();
     }
@@ -572,28 +573,25 @@ class IBusClipHistory extends DEventEmitter {
     }
 
     commitAt(index) {
-        let [text] = this._lookup[this._start + index] || [undefined];
-        if(!text) return;
-        clearTimeout(this._commitId);
-        this._commitId = setTimeout(() => IBusManager._panelService?.commit_text(IBus.Text.new_from_string(text)), 30);
+        this._sbt.commit.revive(this._lookup[this._start + index]?.at(0));
     }
 
     deleteCurrent() {
-        let index = ClipTable.findIndex(x => x[0] === this._lookup[this._cursor][0]);
+        let index = ClipHist.findIndex(x => x[0] === this._lookup[this._cursor][0]);
         if(index === -1) return;
-        ClipTable.splice(index, 1);
+        ClipHist.splice(index, 1);
         this._lookup.splice(this._cursor, 1);
         this.cursor = this._cursor >= this._lookup.length ? Math.max(this._lookup.length - 1, 0) : this._cursor;
     }
 
     mergeCurrent() {
-        let index = ClipTable.findIndex(x => x[0] === this._lookup[this._cursor][0]);
+        let index = ClipHist.findIndex(x => x[0] === this._lookup[this._cursor][0]);
         if(index === -1 || index >= this._lookup.length - 1) return;
         this._lookup.splice(this._cursor, 1);
-        let [clip] = ClipTable.splice(index, 1),
-            hays = ClipTable[index][2] + clip[2],
-            text = `${ClipTable[index][0]} ${clip[0]}`;
-        this._lookup[this._cursor] = ClipTable[index] = [text, compact(shrink(text)), hays];
+        let [clip] = ClipHist.splice(index, 1),
+            hays = ClipHist[index][2] + clip[2],
+            text = `${ClipHist[index][0]} ${clip[0]}`;
+        this._lookup[this._cursor] = ClipHist[index] = [text, visibilize(ellipsize(text)), hays];
         this.cursor = this._cursor;
     }
 
@@ -605,7 +603,7 @@ class IBusClipHistory extends DEventEmitter {
     set preedit(preedit) {
         if(this._preedit === preedit) return;
         this._preedit = preedit;
-        this._lookup = ClipTable.filter(x => fuzzySearch(this._preedit, x[2]));
+        this._lookup = ClipHist.filter(x => fuzzySearch(this._preedit, x[2]));
         this.cursor = 0;
     }
 
@@ -632,7 +630,7 @@ class IBusTweaker extends DEventEmitter {
             clip:   [Field.CLP,  'boolean', IBusClipHistory],
             font:   [Field.FNT,  'boolean', IBusFontSetting],
             input:  [Field.ATSW, 'boolean', IBusAutoSwitch],
-            orien:  [Field.ORN,  'boolean', IBusOrientation],
+            orient: [Field.ORN,  'boolean', IBusOrientation],
             pgbtn:  [Field.PBTN, 'boolean', IBusPageButton],
             theme:  [Field.THM,  'boolean', IBusThemeManager],
             update: [Field.UPD,  'boolean', UpdatesIndicator],

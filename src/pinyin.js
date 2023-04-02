@@ -1,10 +1,10 @@
 // vim:fdm=syntax
 // by tuberry
-/* exported s2pyi */
+/* exported s2py */
 
-const HS = '\u4e00'.charCodeAt(0);
 // pinyin initials of U+4E00-U+9FA5 (20902), gen with python-pinyin (https://github.com/mozillazg/python-pinyin)
-const PY = [
+const Yi = '\u4e00'.codePointAt(0); // one
+const Pinyin = [
     'ydkqsxhwzssxjbymgcczqpssqbycdscdqldylybsgjgyqzjjfgcclzzbwdwzjljpfyynwjjtmyyzwzhflyppqhgccyyymjqyxxgjxhsdsjnjjsmhmlzrxyfsngsyczqz',
     'ggllyjlmyzssecykyyhqwjssggyxyqyjtwkdjhychmyxjtlxjyqbyxdldwrrjjwysrldzjpcbzjjbrcfslbczstzfxxthtrqggbdlyccscymmrfcyqzpwwjjyfcrwfdf',
     'zqpyddwyxkyjawjffxjpdftzyhhycyswccyqsclcxxwzzxnbgnnxbxlzsqcbsgpysyzdhmdzbqbzcwdzzyytzhbtsyyfzgntnxqywqskbphhlxgybfmjebjhhgqtjcys',
@@ -171,6 +171,4 @@ const PY = [
     'chyjlbtzkycqwlpgpyllgkdldlgkgqbgychjxy',
 ];
 
-function s2pyi(str) {
-    return str.replace(/[^ -~]/g, x => (y => PY[y >> 7]?.[y & 127])(x.charCodeAt(0) - HS) ?? x);
-}
+var s2py = s => s.replace(/[^ -~]/g, x => (y => Pinyin[y >> 7]?.[y & 127])(x.codePointAt(0) - Yi) ?? x);
