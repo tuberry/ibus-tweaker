@@ -17,7 +17,7 @@ const CandidatePopup = IBusManager._candidatePopup;
 const CandidateArea = CandidatePopup._candidateArea;
 const ExtensionUtils = imports.misc.extensionUtils;
 const Me = ExtensionUtils.getCurrentExtension();
-const { Fulu, Extension, DEventEmitter, symbiose, omit, onus } = Me.imports.fubar;
+const { Fulu, Extension, DummyActor, symbiose, omit, onus } = Me.imports.fubar;
 const { noop, _, fl, execute } = Me.imports.util;
 const { Field } = Me.imports.const;
 const Pinyin = Me.imports.pinyin;
@@ -76,7 +76,7 @@ const TempPopup = {
     _auxText: { style_class: 'candidate-popup-text' },
 };
 
-class IBusAutoSwitch extends DEventEmitter {
+class IBusAutoSwitch extends DummyActor {
     constructor(fulu) {
         super();
         this._buildWidgets(fulu);
@@ -201,7 +201,7 @@ class IBusAutoSwitch extends DEventEmitter {
     }
 }
 
-class IBusFontSetting extends DEventEmitter {
+class IBusFontSetting extends DummyActor {
     constructor(fulu) {
         super();
         this._fulu = fulu.attach({ fontname: [Field.FNTS, 'string'] }, this);
@@ -227,7 +227,7 @@ class IBusFontSetting extends DEventEmitter {
     }
 }
 
-class IBusOrientation extends DEventEmitter {
+class IBusOrientation extends DummyActor {
     constructor(fulu) {
         super();
         symbiose(this, () => { CandidateArea.setOrientation = this._originalSetOrientation; });
@@ -241,7 +241,7 @@ class IBusOrientation extends DEventEmitter {
     }
 }
 
-class IBusPageButton extends DEventEmitter {
+class IBusPageButton extends DummyActor {
     constructor() {
         super();
         CandidateArea._buttonBox.set_style('border-width: 0;');
@@ -255,7 +255,7 @@ class IBusPageButton extends DEventEmitter {
     }
 }
 
-class IBusThemeManager extends DEventEmitter {
+class IBusThemeManager extends DummyActor {
     constructor(fulu) {
         super();
         this._replaceStyle();
@@ -332,7 +332,7 @@ class IBusThemeManager extends DEventEmitter {
     }
 }
 
-class UpdatesIndicator extends DEventEmitter {
+class UpdatesIndicator extends DummyActor {
     constructor(fulu) {
         super();
         this._bindSettings(fulu);
@@ -443,16 +443,16 @@ class IBusClipPopup extends BoxPointer.BoxPointer {
         return this._candidateArea;
     }
 
-    summon() {
+    summon(cursor) {
         this._candidateArea.visible = true;
-        this.setPosition(CandidatePopup._dummyCursor, 0);
+        this.setPosition(cursor, 0);
         this.open(BoxPointer.PopupAnimation.NONE);
         this.get_parent().set_child_above_sibling(this, null);
         Main.pushModal(this, { actionMode: Shell.ActionMode.POPUP });
     }
 }
 
-class IBusClipHistory extends DEventEmitter {
+class IBusClipHistory extends DummyActor {
     constructor(fulu) {
         super();
         this._buildWidgets(fulu);
@@ -462,9 +462,11 @@ class IBusClipHistory extends DEventEmitter {
 
     _buildWidgets(fulu) {
         this._fulu = fulu;
-        this._sbt = symbiose(this, () => this.dispel(), {
+        this._ptr = new Clutter.Actor({ opacity: 0 }); // workaround for CandidatePopup._dummyCursor jumping with arrow keys
+        Main.layoutManager.uiGroup.add_actor(this._ptr);
+        this._sbt = symbiose(this, () => omit(this, '_ptr', '_pop'), {
             keys: [x => x && Main.wm.removeKeybinding(Field.CKYS),
-                x => x && Main.wm.addKeybinding(Field.CKYS, this._fulu.gset, Meta.KeyBindingFlags.NONE, Shell.ActionMode.ALL, () => this.showLookupTable())],
+                x => x && Main.wm.addKeybinding(Field.CKYS, this._fulu.gset, Meta.KeyBindingFlags.NONE, Shell.ActionMode.ALL, () => this.summon())],
             commit: [clearTimeout, x => x && setTimeout(() => IBusManager._panelService?.commit_text(IBus.Text.new_from_string(x)), 30)],
         });
         global.display.get_selection().connectObject('owner-changed', this.onClipboardChanged.bind(this), onus(this));
@@ -478,14 +480,21 @@ class IBusClipHistory extends DEventEmitter {
     }
 
     summon() {
-        if(this._ptr) return;
-        this._ptr = new IBusClipPopup(this.page_btn);
-        this._ptr.connectObject('captured-event', this.onCapturedEvent.bind(this), onus(this));
-        this._ptr._area.connectObject('cursor-up', () => { this.offset = -1; },
+        if(this._pop || !IBusManager._ready || Main.overview._shown) return;
+        this._pop = new IBusClipPopup(this.page_btn);
+        this._pop.connectObject('captured-event', this.onCapturedEvent.bind(this), onus(this));
+        this._pop._area.connectObject('cursor-up', () => { this.offset = -1; },
             'cursor-down', () => { this.offset = 1; },
             'next-page', () => { this.offset = this.page_size; },
             'candidate-clicked', this.candidateClicked.bind(this),
             'previous-page', () => { this.offset = -this.page_size; }, onus(this));
+        this._preedit = '';
+        this._lookup = [...ClipHist];
+        this.cursor = 0;
+        let { x, y, width, height } = CandidatePopup._dummyCursor;
+        this._ptr.set_position(x, y);
+        this._ptr.set_size(width, height);
+        this._pop.summon(CandidatePopup._dummyCursor);
     }
 
     onClipboardChanged(_sel, type, _src) {
@@ -552,19 +561,10 @@ class IBusClipHistory extends DEventEmitter {
         this._size = Math.min(this.page_size, this._lookup.length - this._start);
         let indices = this._size ? Indices.slice(0, this._size) : ['\u2205'];
         let candidates = this._size ? this._lookup.slice(this._start, this._start + this._size).map(x => x[1]) : [_('Empty history.')];
-        this._ptr._area.setCandidates(indices, candidates, this._cursor % this.page_size, this._size);
-        this._ptr._area.updateButtons(false, this._page, Math.ceil(this._lookup.length / this.page_size));
-        this._ptr.aux = this._lookup[this._cursor]?.[0].length;
-        this._ptr.preedit = this._preedit;
-    }
-
-    showLookupTable() {
-        if(!IBusManager._ready) return;
-        this.summon();
-        this._preedit = '';
-        this._lookup = [...ClipHist];
-        this.cursor = 0;
-        this._ptr.summon();
+        this._pop._area.setCandidates(indices, candidates, this._cursor % this.page_size, this._size);
+        this._pop._area.updateButtons(false, this._page, Math.ceil(this._lookup.length / this.page_size));
+        this._pop.aux = this._lookup[this._cursor]?.[0].length;
+        this._pop.preedit = this._preedit;
     }
 
     candidateClicked(_area, index) {
@@ -608,11 +608,11 @@ class IBusClipHistory extends DEventEmitter {
     }
 
     dispel() {
-        omit(this, '_ptr');
+        omit(this, '_pop');
     }
 }
 
-class IBusTweaker extends DEventEmitter {
+class IBusTweaker extends DummyActor {
     constructor() {
         super();
         this._buildWidgets();
