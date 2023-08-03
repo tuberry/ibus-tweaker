@@ -12,13 +12,12 @@ const { Shell, Clutter, Gio, GLib, Meta, IBus, Pango, St, GObject } = imports.gi
 
 const IBusManager = imports.misc.ibusManager.getIBusManager();
 const InputManager = imports.ui.status.keyboard.getInputSourceManager();
-const LightProxy = Main.panel.statusArea.quickSettings._nightLight._proxy;
 const CandidatePopup = IBusManager._candidatePopup;
 const CandidateArea = CandidatePopup._candidateArea;
 const ExtensionUtils = imports.misc.extensionUtils;
 const Me = ExtensionUtils.getCurrentExtension();
-const { Fulu, Extension, DummyActor, symbiose, omit, onus } = Me.imports.fubar;
-const { noop, _, fl, execute } = Me.imports.util;
+const { Fulu, Extension, Destroyable, symbiose, omit, initLightProxy } = Me.imports.fubar;
+const { noop, _, fopen, execute } = Me.imports.util;
 const { Field } = Me.imports.const;
 const Pinyin = Me.imports.pinyin;
 
@@ -76,7 +75,7 @@ const TempPopup = {
     _auxText: { style_class: 'candidate-popup-text' },
 };
 
-class IBusAutoSwitch extends DummyActor {
+class IBusAutoSwitch extends Destroyable {
     constructor(fulu) {
         super();
         this._buildWidgets(fulu);
@@ -86,8 +85,8 @@ class IBusAutoSwitch extends DummyActor {
     _buildWidgets(fulu) {
         this.reset = true;
         this._fulu = fulu;
-        global.display.connectObject('notify::focus-window', () => this.toggleInputMode(), onus(this));
-        Main.overview.connectObject('hidden', () => this.setEmpty(), 'shown', () => this.setEmpty('#overview'), onus(this));
+        global.display.connectObject('notify::focus-window', () => this.toggleInputMode(), this);
+        Main.overview.connectObject('hidden', () => this.setEmpty(), 'shown', () => this.setEmpty('#overview'), this);
         this._sbt = symbiose(this, () => { omit(this, 'reset'); this._fulu.set('modes', new GLib.Variant('a{s(ss)}', Object.fromEntries(this._modes)), this); }, {
             keys: [x => x && Main.wm.removeKeybinding(Field.RKYS),
                 x => x && Main.wm.addKeybinding(Field.RKYS, this._fulu.gset, Meta.KeyBindingFlags.NONE, Shell.ActionMode.ALL, () => this.openRunDialog())],
@@ -195,13 +194,13 @@ class IBusAutoSwitch extends DummyActor {
     openRunDialog() {
         if(!Main.runDialog) {
             Main.runDialog = new RunDialog();
-            Main.runDialog.connectObject('notify::visible', () => this.setEmpty(Main.runDialog.visible && '#run-dialog'), onus(this));
+            Main.runDialog.connectObject('notify::visible', () => this.setEmpty(Main.runDialog.visible && '#run-dialog'), this);
         }
         Main.runDialog.open();
     }
 }
 
-class IBusFontSetting extends DummyActor {
+class IBusFontSetting extends Destroyable {
     constructor(fulu) {
         super();
         this._fulu = fulu.attach({ fontname: [Field.FNTS, 'string'] }, this);
@@ -227,7 +226,7 @@ class IBusFontSetting extends DummyActor {
     }
 }
 
-class IBusOrientation extends DummyActor {
+class IBusOrientation extends Destroyable {
     constructor(fulu) {
         super();
         symbiose(this, () => { CandidateArea.setOrientation = this._originalSetOrientation; });
@@ -241,7 +240,7 @@ class IBusOrientation extends DummyActor {
     }
 }
 
-class IBusPageButton extends DummyActor {
+class IBusPageButton extends Destroyable {
     constructor() {
         super();
         CandidateArea._buttonBox.set_style('border-width: 0;');
@@ -255,12 +254,11 @@ class IBusPageButton extends DummyActor {
     }
 }
 
-class IBusThemeManager extends DummyActor {
+class IBusThemeManager extends Destroyable {
     constructor(fulu) {
         super();
         this._replaceStyle();
         this._bindSettings(fulu);
-        this._syncNightLight();
         symbiose(this, () => this._restoreStyle());
     }
 
@@ -272,18 +270,13 @@ class IBusThemeManager extends DummyActor {
             color: [Field.THMS, 'uint', x => this._palette[x]],
             style: [Field.TSTL, 'uint'],
         }, this, 'murkey');
-        LightProxy.connectObject('g-properties-changed', () => this._syncNightLight(), onus(this));
-    }
-
-    _syncNightLight() {
-        if(LightProxy.NightLightActive === null) return;
-        this.murkey = ['night_light', LightProxy.NightLightActive];
+        this._light = initLightProxy(() => { this.murkey = ['night_light', this._light.NightLightActive]; }, this);
     }
 
     set murkey([k, v, out]) {
-        this[k] = out ? out(v) : v;
-        this.dark = (this.style === Style.AUTO && this.night_light) ||
-            (this.style === Style.SYSTEM && this.scheme) || this.style === Style.DARK;
+        if(k) this[k] = out ? out(v) : v;
+        this.dark = this.style === Style.AUTO ? this.night_light
+            : this.style === Style.SYSTEM ? this.scheme : this.style === Style.DARK;
         this._updateStyle();
     }
 
@@ -332,7 +325,7 @@ class IBusThemeManager extends DummyActor {
     }
 }
 
-class UpdatesIndicator extends DummyActor {
+class UpdatesIndicator extends Destroyable {
     constructor(fulu) {
         super();
         this._bindSettings(fulu);
@@ -346,7 +339,7 @@ class UpdatesIndicator extends DummyActor {
         this._sbt = symbiose(this, () => omit(this, '_btn'), {
             check: [clearTimeout, () => setTimeout(() => this._checkUpdates(), 10 * 1000)],
             cycle: [clearInterval, () => setInterval(() => this._checkUpdates(), 60 * 60 * 1000)],
-            watch: [x => x && x.cancel(), x => x && fl(this.updatesdir).monitor(Gio.FileMonitorFlags.WATCH_MOVES, null)],
+            watch: [x => x && x.cancel(), x => x && fopen(this.updatesdir).monitor(Gio.FileMonitorFlags.WATCH_MOVES, null)],
         });
     }
 
@@ -452,7 +445,7 @@ class IBusClipPopup extends BoxPointer.BoxPointer {
     }
 }
 
-class IBusClipHistory extends DummyActor {
+class IBusClipHistory extends Destroyable {
     constructor(fulu) {
         super();
         this._buildWidgets(fulu);
@@ -469,7 +462,7 @@ class IBusClipHistory extends DummyActor {
                 x => x && Main.wm.addKeybinding(Field.CKYS, this._fulu.gset, Meta.KeyBindingFlags.NONE, Shell.ActionMode.ALL, () => this.summon())],
             commit: [clearTimeout, x => x && setTimeout(() => IBusManager._panelService?.commit_text(IBus.Text.new_from_string(x)), 30)],
         });
-        global.display.get_selection().connectObject('owner-changed', this.onClipboardChanged.bind(this), onus(this));
+        global.display.get_selection().connectObject('owner-changed', this.onClipboardChanged.bind(this), this);
     }
 
     _bindSettings() {
@@ -482,12 +475,12 @@ class IBusClipHistory extends DummyActor {
     summon() {
         if(this._pop || !IBusManager._ready || Main.overview._shown) return;
         this._pop = new IBusClipPopup(this.page_btn);
-        this._pop.connectObject('captured-event', this.onCapturedEvent.bind(this), onus(this));
+        this._pop.connectObject('captured-event', this.onCapturedEvent.bind(this), this);
         this._pop._area.connectObject('cursor-up', () => { this.offset = -1; },
             'cursor-down', () => { this.offset = 1; },
             'next-page', () => { this.offset = this.page_size; },
             'candidate-clicked', this.candidateClicked.bind(this),
-            'previous-page', () => { this.offset = -this.page_size; }, onus(this));
+            'previous-page', () => { this.offset = -this.page_size; }, this);
         this._preedit = '';
         this._lookup = [...ClipHist];
         this.cursor = 0;
@@ -612,7 +605,7 @@ class IBusClipHistory extends DummyActor {
     }
 }
 
-class IBusTweaker extends DummyActor {
+class IBusTweaker extends Destroyable {
     constructor() {
         super();
         this._buildWidgets();
