@@ -1,25 +1,31 @@
 // vim:fdm=syntax
 // by tuberry
-/* exported init */
-'use strict';
 
-const Main = imports.ui.main;
-const PanelMenu = imports.ui.panelMenu;
-const BoxPointer = imports.ui.boxpointer;
-const { RunDialog } = imports.ui.runDialog;
-const IBusCandidatePopup = imports.ui.ibusCandidatePopup;
-const { Shell, Clutter, Gio, GLib, Meta, IBus, Pango, St, GObject } = imports.gi;
+import St from 'gi://St';
+import Gio from 'gi://Gio';
+import GLib from 'gi://GLib';
+import Meta from 'gi://Meta';
+import IBus from 'gi://IBus';
+import Shell from 'gi://Shell';
+import Pango from 'gi://Pango';
+import Clutter from 'gi://Clutter';
+import GObject from 'gi://GObject';
 
-const IBusManager = imports.misc.ibusManager.getIBusManager();
-const InputManager = imports.ui.status.keyboard.getInputSourceManager();
-const CandidatePopup = IBusManager._candidatePopup;
-const CandidateArea = CandidatePopup._candidateArea;
-const ExtensionUtils = imports.misc.extensionUtils;
-const Me = ExtensionUtils.getCurrentExtension();
-const { Fulu, Extension, Destroyable, symbiose, omit, initLightProxy } = Me.imports.fubar;
-const { noop, _, fopen, execute } = Me.imports.util;
-const { Field } = Me.imports.const;
-const Pinyin = Me.imports.pinyin;
+import * as Main from 'resource:///org/gnome/shell/ui/main.js';
+import * as PanelMenu from 'resource:///org/gnome/shell/ui/panelMenu.js';
+import * as BoxPointer from 'resource:///org/gnome/shell/ui/boxpointer.js';
+import * as IBusManager from 'resource:///org/gnome/shell/misc/ibusManager.js';
+import * as Keyboard from 'resource:///org/gnome/shell/ui/status/keyboard.js';
+
+import { Field } from './const.js';
+import { s2py } from './pinyin.js';
+import { noop, fopen, execute } from './util.js';
+import { Fulu, BaseExtension, Destroyable, symbiose, omit, onus, getSelf, lightProxy, _ } from './fubar.js';
+
+const IBusMgr = IBusManager.getIBusManager();
+const IBusPopup = IBusMgr._candidatePopup;
+const IBusPopupArea = IBusPopup._candidateArea;
+const InputManager = Keyboard.getInputSourceManager();
 
 const ClipHist = [];
 const Style = { AUTO: 0, LIGHT: 1, DARK: 2, SYSTEM: 3 };
@@ -43,7 +49,7 @@ function addStyleClass(tmp, src, aim, cb) {
     for(let p in tmp) {
         if(!(p in aim)) continue;
         if(typeof tmp[p] === 'object') {
-            if(Array.isArray(tmp[p])) tmp[p].forEach((x, i) => addStyleClass(x, src[p][i], aim[p][i], cb));
+            if(Array.isArray(tmp[p])) aim[p].forEach((x, i) => addStyleClass(tmp[p][i], src[p][i], x, cb));
             else addStyleClass(tmp[p], src[p], aim[p], cb);
         } else {
             aim.remove_style_class_name(aim[p]);
@@ -83,11 +89,10 @@ class IBusAutoSwitch extends Destroyable {
     }
 
     _buildWidgets(fulu) {
-        this.reset = true;
         this._fulu = fulu;
-        global.display.connectObject('notify::focus-window', () => this.toggleInputMode(), this);
-        Main.overview.connectObject('hidden', () => this.setEmpty(), 'shown', () => this.setEmpty('#overview'), this);
-        this._sbt = symbiose(this, () => { omit(this, 'reset'); this._fulu.set('modes', new GLib.Variant('a{s(ss)}', Object.fromEntries(this._modes)), this); }, {
+        global.display.connectObject('notify::focus-window', () => this.toggleInputMode(), onus(this));
+        Main.overview.connectObject('hidden', () => this.setEmpty(), 'shown', () => this.setEmpty('#overview'), onus(this));
+        this._sbt = symbiose(this, () => this._fulu.set('modes', new GLib.Variant('a{s(ss)}', Object.fromEntries(this._modes)), this), {
             keys: [x => x && Main.wm.removeKeybinding(Field.RKYS),
                 x => x && Main.wm.addKeybinding(Field.RKYS, this._fulu.gset, Meta.KeyBindingFlags.NONE, Shell.ActionMode.ALL, () => this.openRunDialog())],
         });
@@ -101,27 +106,7 @@ class IBusAutoSwitch extends Destroyable {
     }
 
     set modes(modes) {
-        if(this._modes) return;
-        this._modes = new Map(Object.entries(modes.recursiveUnpack()));
-    }
-
-    set reset(reset) {
-        // FIXME: workaround for https://gitlab.gnome.org/GNOME/gnome-shell/-/issues/6062
-        // MR to fix: https://gitlab.gnome.org/GNOME/gnome-shell/-/merge_requests/2666
-        if(reset) {
-            Main.inputMethod._fullReset = () => {
-                Main.inputMethod._context.set_content_type(0, 0);
-                Main.inputMethod._context.set_cursor_location(0, 0, 0, 0);
-                Main.inputMethod._context.reset();
-            };
-        } else {
-            Main.inputMethod._fullReset = () => {
-                Main.inputMethod._context.set_content_type(0, 0);
-                Main.inputMethod._context.set_cursor_location(0, 0, 0, 0);
-                Main.inputMethod._context.set_capabilities(0);
-                Main.inputMethod._context.reset();
-            };
-        }
+        this._modes ??= new Map(Object.entries(modes.recursiveUnpack()));
     }
 
     getInputMode(ps) {
@@ -158,7 +143,7 @@ class IBusAutoSwitch extends Destroyable {
     }
 
     activateProp(key, state) {
-        IBusManager.activateProperty(key, state ? 1 : 0);
+        IBusMgr.activateProperty(key, state ? 1 : 0);
     }
 
     setEmpty(empty) {
@@ -192,11 +177,13 @@ class IBusAutoSwitch extends Destroyable {
     }
 
     openRunDialog() {
-        if(!Main.runDialog) {
-            Main.runDialog = new RunDialog();
-            Main.runDialog.connectObject('notify::visible', () => this.setEmpty(Main.runDialog.visible && '#run-dialog'), this);
+        if(!Main.runDialog || !this._dialogId) {
+            Main.openRunDialog();
+            this._dialogId = Main.runDialog.connectObject('notify::visible', () => this.setEmpty(Main.runDialog.visible && '#run-dialog'), onus(this));
+            this.setEmpty('#run-dialog');
+        } else {
+            Main.openRunDialog();
         }
-        Main.runDialog.open();
     }
 }
 
@@ -205,8 +192,8 @@ class IBusFontSetting extends Destroyable {
         super();
         this._fulu = fulu.attach({ fontname: [Field.FNTS, 'string'] }, this);
         symbiose(this, () => {
-            CandidatePopup.set_style('');
-            CandidateArea._candidateBoxes.forEach(x => x._candidateLabel.set_style('') && x._indexLabel.set_style(''));
+            IBusPopup.set_style('');
+            IBusPopupArea._candidateBoxes.forEach(x => x._candidateLabel.set_style('') && x._indexLabel.set_style(''));
         });
     }
 
@@ -214,12 +201,12 @@ class IBusFontSetting extends Destroyable {
         let scale = 13 / 16,
             desc = Pango.FontDescription.from_string(fontname),
             getWeight = () => { try { return desc.get_weight(); } catch(e) { return parseInt(e.message); } }; // workaround for Pango.Weight enumeration exception (eg: 290)
-        CandidatePopup.set_style(`font-weight: ${getWeight()};
-                                 font-family: "${desc.get_family()}";
-                                 font-size: ${(desc.get_size() / Pango.SCALE) * scale}pt;
-                                 font-style: ${Object.keys(Pango.Style)[desc.get_style()].toLowerCase()};`
+        IBusPopup.set_style(`font-weight: ${getWeight()};
+                             font-family: "${desc.get_family()}";
+                             font-size: ${(desc.get_size() / Pango.SCALE) * scale}pt;
+                             font-style: ${Object.keys(Pango.Style)[desc.get_style()].toLowerCase()};`
         );
-        CandidateArea._candidateBoxes.forEach(x => {
+        IBusPopupArea._candidateBoxes.forEach(x => {
             x._candidateLabel.set_style(`font-size: ${desc.get_size() / Pango.SCALE}pt;`);
             x._indexLabel.set_style(`padding: ${(1 - scale) * 2}em 0.25em 0 0;`);
         });
@@ -229,10 +216,10 @@ class IBusFontSetting extends Destroyable {
 class IBusOrientation extends Destroyable {
     constructor(fulu) {
         super();
-        symbiose(this, () => { CandidateArea.setOrientation = this._originalSetOrientation; });
-        this._originalSetOrientation = CandidateArea.setOrientation.bind(CandidateArea);
+        symbiose(this, () => { IBusPopupArea.setOrientation = this._originalSetOrientation; });
+        this._originalSetOrientation = IBusPopupArea.setOrientation.bind(IBusPopupArea);
         this._fulu = fulu.attach({ orientation: [Field.ORNS, 'uint'] }, this);
-        CandidateArea.setOrientation = noop;
+        IBusPopupArea.setOrientation = noop;
     }
 
     set orientation(orientation) {
@@ -243,13 +230,13 @@ class IBusOrientation extends Destroyable {
 class IBusPageButton extends Destroyable {
     constructor() {
         super();
-        CandidateArea._buttonBox.set_style('border-width: 0;');
-        CandidateArea._previousButton.hide();
-        CandidateArea._nextButton.hide();
+        IBusPopupArea._buttonBox.set_style('border-width: 0;');
+        IBusPopupArea._previousButton.hide();
+        IBusPopupArea._nextButton.hide();
         symbiose(this, () => {
-            CandidateArea._buttonBox.set_style('');
-            CandidateArea._previousButton.show();
-            CandidateArea._nextButton.show();
+            IBusPopupArea._buttonBox.set_style('');
+            IBusPopupArea._previousButton.show();
+            IBusPopupArea._nextButton.show();
         });
     }
 }
@@ -270,7 +257,7 @@ class IBusThemeManager extends Destroyable {
             color: [Field.THMS, 'uint', x => this._palette[x]],
             style: [Field.TSTL, 'uint'],
         }, this, 'murkey');
-        this._light = initLightProxy(() => { this.murkey = ['night_light', this._light.NightLightActive]; }, this);
+        this._light = lightProxy(() => { this.murkey = ['night_light', this._light.NightLightActive]; }, this);
     }
 
     set murkey([k, v, out]) {
@@ -282,23 +269,23 @@ class IBusThemeManager extends Destroyable {
 
     toggleDark() {
         if((this._dark = this.dark)) {
-            CandidatePopup.remove_style_class_name(this.color);
-            CandidatePopup.add_style_class_name('night');
-            CandidatePopup.add_style_class_name(`night-${this.color}`);
+            IBusPopup.remove_style_class_name(this.color);
+            IBusPopup.add_style_class_name('night');
+            IBusPopup.add_style_class_name(`night-${this.color}`);
         } else {
-            CandidatePopup.remove_style_class_name('night');
-            CandidatePopup.remove_style_class_name(`night-${this.color}`);
-            CandidatePopup.add_style_class_name(this.color);
+            IBusPopup.remove_style_class_name('night');
+            IBusPopup.remove_style_class_name(`night-${this.color}`);
+            IBusPopup.add_style_class_name(this.color);
         }
     }
 
     changeColor() {
         if(this._dark) {
-            if(this._color) CandidatePopup.remove_style_class_name(`night-${this._color}`);
-            CandidatePopup.add_style_class_name(`night-${this.color}`);
+            if(this._color) IBusPopup.remove_style_class_name(`night-${this._color}`);
+            IBusPopup.add_style_class_name(`night-${this.color}`);
         } else {
-            if(this._color) CandidatePopup.remove_style_class_name(this._color);
-            CandidatePopup.add_style_class_name(this.color);
+            if(this._color) IBusPopup.remove_style_class_name(this._color);
+            IBusPopup.add_style_class_name(this.color);
         }
         this._color = this.color;
     }
@@ -311,17 +298,17 @@ class IBusThemeManager extends Destroyable {
 
     _replaceStyle() {
         this._palette = ['red', 'green', 'orange', 'blue', 'purple', 'turquoise', 'grey'];
-        addStyleClass(TempPopup, TempPopup, CandidatePopup, x => x.replace(/candidate/g, 'ibus-tweaker-candidate'));
+        addStyleClass(TempPopup, TempPopup, IBusPopup, x => x.replace(/candidate/g, 'ibus-tweaker-candidate'));
     }
 
     _restoreStyle() {
         if(this.style) {
-            CandidatePopup.remove_style_class_name('night');
-            CandidatePopup.remove_style_class_name(`night-${this.color}`);
+            IBusPopup.remove_style_class_name('night');
+            IBusPopup.remove_style_class_name(`night-${this.color}`);
         } else {
-            CandidatePopup.remove_style_class_name(this.color);
+            IBusPopup.remove_style_class_name(this.color);
         }
-        addStyleClass(TempPopup, TempPopup, CandidatePopup);
+        addStyleClass(TempPopup, TempPopup, IBusPopup);
     }
 }
 
@@ -367,7 +354,7 @@ class UpdatesIndicator extends Destroyable {
     }
 
     _addIndicator() {
-        this._btn = Main.panel.addToStatusArea(Me.metadata.uuid, new PanelMenu.Button(0, Me.metadata.uuid, true), 5, 'center');
+        this._btn = Main.panel.addToStatusArea(getSelf().uuid, new PanelMenu.Button(0, '', true), 5, 'center');
         let box = new St.BoxLayout({ style_class: 'panel-status-menu-box' });
         let icon = new St.Icon({ style_class: 'system-status-icon', icon_name: 'software-update-available-symbolic' });
         this._btn.label = new St.Label({ y_align: Clutter.ActorAlign.CENTER });
@@ -375,6 +362,102 @@ class UpdatesIndicator extends Destroyable {
         this._btn.reactive = false;
         this._btn.add_actor(box);
         this._btn.hide();
+    }
+}
+
+class IBusClipArea extends St.BoxLayout {
+    // copy from js/ui/ibusCandidatePopup.js since it's private in 45.beta
+    static {
+        GObject.registerClass({
+            Signals: {
+                'cursor-up': {},
+                'next-page': {},
+                'cursor-down': {},
+                'previous-page': {},
+                'candidate-clicked': { param_types: [GObject.TYPE_UINT, GObject.TYPE_UINT, Clutter.ModifierType.$gtype] },
+            },
+        }, this);
+    }
+
+    constructor() {
+        super({ vertical: true, reactive: true, visible: false });
+        this._candidateBoxes = [];
+        Indices.forEach((_x, i) => {
+            let box = new St.BoxLayout({ style_class: 'candidate-box', reactive: true, track_hover: true });
+            box.connect('button-release-event', (_a, event) => {
+                this.emit('candidate-clicked', i, event.get_button(), event.get_state());
+                return Clutter.EVENT_PROPAGATE;
+            });
+            [box._indexLabel, box._candidateLabel] = ['index', 'label'].map(x => {
+                let label = new St.Label({ style_class: `candidate-${x}` });
+                box.add_child(label);
+                return label;
+            });
+            this._candidateBoxes.push(box);
+            this.add(box);
+        });
+        this._buttonBox = new St.BoxLayout({ style_class: 'candidate-page-button-box' });
+        [this._nextButton, this._previousButton] = ['next', 'previous'].map(x => {
+            let sgn = `${x}-page`;
+            let btn = new St.Button({ style_class: `candidate-page-button candidate-page-button-${x}-button`, x_expand: true });
+            btn.connectObject('clicked', () => this.emit(sgn));
+            this._buttonBox.add(btn);
+            return btn;
+        });
+        this.add(this._buttonBox);
+        this._orientation = -1;
+        this._cursorPosition = 0;
+    }
+
+    vfunc_scroll_event(event) {
+        switch(event.get_scroll_direction()) {
+        case Clutter.ScrollDirection.UP: this.emit('cursor-up'); break;
+        case Clutter.ScrollDirection.DOWN: this.emit('cursor-down'); break;
+        }
+        return Clutter.EVENT_PROPAGATE;
+    }
+
+    setOrientation(orientation) {
+        if(this._orientation === orientation) return;
+        this._orientation = orientation;
+        if(this._orientation === IBus.Orientation.HORIZONTAL) {
+            this.vertical = false;
+            this.remove_style_class_name('vertical');
+            this.add_style_class_name('horizontal');
+            this._previousButton.icon_name = 'go-previous-symbolic';
+            this._nextButton.icon_name = 'go-next-symbolic';
+        } else {                // VERTICAL || SYSTEM
+            this.vertical = true;
+            this.add_style_class_name('vertical');
+            this.remove_style_class_name('horizontal');
+            this._previousButton.icon_name = 'go-up-symbolic';
+            this._nextButton.icon_name = 'go-down-symbolic';
+        }
+    }
+
+    setCandidates(indexes, candidates, cursorPosition, cursorVisible) {
+        for(let i = 0; i < Indices.length; ++i) {
+            let visible = i < candidates.length;
+            let box = this._candidateBoxes[i];
+            box.visible = visible;
+            if(!visible) continue;
+            box._indexLabel.text = indexes && indexes[i] ? indexes[i] : Indices[i];
+            box._candidateLabel.text = candidates[i];
+        }
+
+        this._candidateBoxes[this._cursorPosition].remove_style_pseudo_class('selected');
+        this._cursorPosition = cursorPosition;
+        if(cursorVisible) this._candidateBoxes[cursorPosition].add_style_pseudo_class('selected');
+    }
+
+    updateButtons(wrapsAround, page, nPages) {
+        if(nPages < 2) {
+            this._buttonBox.hide();
+        } else {
+            this._buttonBox.show();
+            this._previousButton.reactive = wrapsAround || page > 0;
+            this._nextButton.reactive = wrapsAround || page < nPages - 1;
+        }
     }
 }
 
@@ -401,7 +484,7 @@ class IBusClipPopup extends BoxPointer.BoxPointer {
         this._auxText = new St.Label({ style_class: 'candidate-popup-text', visible: true });
         [this._preeditText, this._auxText].forEach(x => hbox.add(x));
         box.add(hbox);
-        this._candidateArea = new IBusCandidatePopup.CandidateArea();
+        this._candidateArea = new IBusClipArea();
         this._candidateArea.setOrientation(IBus.Orientation.VERTICAL);
         box.add(this._candidateArea);
         this.bin.set_child(box);
@@ -409,9 +492,9 @@ class IBusClipPopup extends BoxPointer.BoxPointer {
     }
 
     _replaceStyle(page_btn) {
-        addStyleClass(TempPopup, CandidatePopup, this);
-        this.set_style(CandidatePopup.get_style());
-        let [box] = CandidatePopup._candidateArea._candidateBoxes,
+        addStyleClass(TempPopup, IBusPopup, this);
+        this.set_style(IBusPopup.get_style());
+        let [box] = IBusPopup._candidateArea._candidateBoxes,
             i_style = box._indexLabel.get_style(),
             c_style = box._candidateLabel.get_style();
         this._candidateArea._candidateBoxes.forEach(x => {
@@ -449,8 +532,8 @@ class IBusClipHistory extends Destroyable {
     constructor(fulu) {
         super();
         this._buildWidgets(fulu);
-        this._sbt.keys.revive(true);
         this._bindSettings();
+        this._sbt.keys.revive(true);
     }
 
     _buildWidgets(fulu) {
@@ -460,9 +543,9 @@ class IBusClipHistory extends Destroyable {
         this._sbt = symbiose(this, () => omit(this, '_ptr', '_pop'), {
             keys: [x => x && Main.wm.removeKeybinding(Field.CKYS),
                 x => x && Main.wm.addKeybinding(Field.CKYS, this._fulu.gset, Meta.KeyBindingFlags.NONE, Shell.ActionMode.ALL, () => this.summon())],
-            commit: [clearTimeout, x => x && setTimeout(() => IBusManager._panelService?.commit_text(IBus.Text.new_from_string(x)), 30)],
+            commit: [clearTimeout, x => x && setTimeout(() => IBusMgr._panelService?.commit_text(IBus.Text.new_from_string(x)), 30)],
         });
-        global.display.get_selection().connectObject('owner-changed', this.onClipboardChanged.bind(this), this);
+        global.display.get_selection().connectObject('owner-changed', this.onClipboardChanged.bind(this), onus(this));
     }
 
     _bindSettings() {
@@ -473,21 +556,21 @@ class IBusClipHistory extends Destroyable {
     }
 
     summon() {
-        if(this._pop || !IBusManager._ready || Main.overview._shown) return;
+        if(this._pop || !IBusMgr._ready || Main.overview._shown) return;
         this._pop = new IBusClipPopup(this.page_btn);
-        this._pop.connectObject('captured-event', this.onCapturedEvent.bind(this), this);
+        this._pop.connectObject('captured-event', this.onCapturedEvent.bind(this), onus(this));
         this._pop._area.connectObject('cursor-up', () => { this.offset = -1; },
             'cursor-down', () => { this.offset = 1; },
             'next-page', () => { this.offset = this.page_size; },
             'candidate-clicked', this.candidateClicked.bind(this),
-            'previous-page', () => { this.offset = -this.page_size; }, this);
+            'previous-page', () => { this.offset = -this.page_size; }, onus(this));
         this._preedit = '';
         this._lookup = [...ClipHist];
         this.cursor = 0;
-        let { x, y, width, height } = CandidatePopup._dummyCursor;
+        let { x, y, width, height } = IBusPopup._dummyCursor;
         this._ptr.set_position(x, y);
         this._ptr.set_size(width, height);
-        this._pop.summon(CandidatePopup._dummyCursor);
+        this._pop.summon(IBusPopup._dummyCursor);
     }
 
     onClipboardChanged(_sel, type, _src) {
@@ -496,7 +579,7 @@ class IBusClipHistory extends Destroyable {
             if(!text) return;
             let index = ClipHist.findIndex(([x]) => x === text);
             if(index < 0) {
-                ClipHist.unshift([text, visibilize(ellipsize(text)), Pinyin.s2py(text.toLowerCase())]);
+                ClipHist.unshift([text, visibilize(ellipsize(text)), s2py(text.toLowerCase())]);
                 while(ClipHist.length > 64) ClipHist.pop();
             } else if(index > 0) {
                 [ClipHist[0], ClipHist[index]] = [ClipHist[index], ClipHist[0]];
@@ -505,9 +588,10 @@ class IBusClipHistory extends Destroyable {
     }
 
     onCapturedEvent(actor, event) {
-        if(event.type() === Clutter.EventType.KEY_PRESS) {
-            let keyval = event.get_key_symbol();
-            switch(keyval) {
+        let type = event.type();
+        if(type === Clutter.EventType.KEY_PRESS) {
+            let key = event.get_key_symbol();
+            switch(key) {
             case Clutter.KEY_Up:        this.offset = -1; break;
             case Clutter.KEY_Down:      this.offset = 1; break;
             case Clutter.KEY_Left:
@@ -520,12 +604,12 @@ class IBusClipHistory extends Destroyable {
             case Clutter.KEY_backslash: this.mergeCurrent(); break;
             case Clutter.KEY_BackSpace: this.preedit = this._preedit.slice(0, -1); break;
             default:
-                if(keyval < 33 || keyval > 126) this.dispel();
-                else if(keyval > 47 && keyval < 58) this.selectAt(keyval);
-                else this.preedit = this._preedit + String.fromCharCode(keyval); break;
+                if(key < 33 || key > 126) this.dispel();
+                else if(key > 47 && key < 58) this.selectAt(key);
+                else this.preedit = this._preedit + String.fromCharCode(key); break;
             }
             return Clutter.EVENT_STOP;
-        } else if((event.type() === Clutter.EventType.BUTTON_PRESS || event.type() === Clutter.EventType.TOUCH_BEGIN) &&
+        } else if((type === Clutter.EventType.BUTTON_PRESS || type === Clutter.EventType.TOUCH_BEGIN) &&
                   !actor.contains(global.stage.get_event_actor(event))) {
             this.dispel();
             return Clutter.EVENT_STOP;
@@ -606,15 +690,15 @@ class IBusClipHistory extends Destroyable {
 }
 
 class IBusTweaker extends Destroyable {
-    constructor() {
+    constructor(gset) {
         super();
-        this._buildWidgets();
+        this._buildWidgets(gset);
         this._bindSettings();
     }
 
-    _buildWidgets() {
+    _buildWidgets(gset) {
         this._tweaks = {};
-        this._fulu = new Fulu({}, ExtensionUtils.getSettings(), this, 'props');
+        this._fulu = new Fulu({}, gset, this, 'props');
         symbiose(this, () => omit(this._tweaks, ...Object.keys(this._tweaks)));
     }
 
@@ -636,6 +720,4 @@ class IBusTweaker extends Destroyable {
     }
 }
 
-function init() {
-    return new Extension(IBusTweaker);
-}
+export default class Extension extends BaseExtension { $klass = IBusTweaker; }

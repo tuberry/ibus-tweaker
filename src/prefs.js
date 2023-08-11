@@ -1,22 +1,17 @@
 // vim:fdm=syntax
 // by tuberry
-/* exported init buildPrefsWidget */
-'use strict';
 
-const { Adw, Gtk, GObject } = imports.gi;
+import Adw from 'gi://Adw';
+import Gtk from 'gi://Gtk';
+import GObject from 'gi://GObject';
 
-const ExtensionUtils = imports.misc.extensionUtils;
-const Me = ExtensionUtils.getCurrentExtension();
-const { Field } = Me.imports.const;
-const { _ } = Me.imports.util;
-const UI = Me.imports.ui;
+import * as UI from './ui.js';
+import { Field } from './const.js';
 
-function buildPrefsWidget() {
+const { _ } = UI;
+
+export function buildPrefsWidget() {
     return new IBusTweakerPrefs();
-}
-
-function init() {
-    ExtensionUtils.initTranslations();
 }
 
 class IBusTweakerPrefs extends Adw.PreferencesGroup {
@@ -24,14 +19,13 @@ class IBusTweakerPrefs extends Adw.PreferencesGroup {
         GObject.registerClass(this);
     }
 
-    constructor() {
+    constructor(gset) {
         super();
-        this._buildWidgets();
+        this._buildWidgets(gset);
         this._buildUI();
     }
 
-    _buildWidgets() {
-        let gset = ExtensionUtils.getSettings();
+    _buildWidgets(gset) {
         this._blk = UI.block({
             FNTS: ['value',    new UI.Font()],
             CLP:  ['active',   new Gtk.CheckButton()],
@@ -58,11 +52,14 @@ class IBusTweakerPrefs extends Adw.PreferencesGroup {
         [
             [this._blk.PBTN, [_('Hide page buttons')]],
             [this._blk.ATSW, [_('Autoswitch input mode')]],
-            [this._blk.ORN,  [_('Candidates orientation')], this._blk.ORNS],
             [this._blk.DLG,  [_('Run dialog')], this._blk.RKYS],
+            [this._blk.ORN,  [_('Candidates orientation')], this._blk.ORNS],
             [this._blk.THM,  [_('MS IME theme')], this._blk.TSTL, this._blk.THMS],
             [this._blk.CLP,  [_('Clipboard history')], this._blk.CLPS, this._blk.CKYS],
             [this._blk.FNT,  [_('Use custom font')], this._blk.FNTS],
         ].forEach(xs => this.add(new UI.PrefRow(...xs)));
     }
 }
+
+export default class PrefsWidget extends UI.Prefs { $klass = IBusTweakerPrefs; }
+

@@ -1,6 +1,5 @@
 // vim:fdm=syntax
 // by tuberry
-/* exported s2py */
 
 // pinyin initials of U+4E00-U+9FA5 (20902), gen with python-pinyin (https://github.com/mozillazg/python-pinyin)
 const Yi = '\u4e00'.codePointAt(0); // one
@@ -171,4 +170,4 @@ const Pinyin = [
     'chyjlbtzkycqwlpgpyllgkdldlgkgqbgychjxy',
 ];
 
-var s2py = s => s.replace(/[^ -~]/g, x => (y => Pinyin[y >> 7]?.[y & 127])(x.codePointAt(0) - Yi) ?? x);
+export const s2py = s => s.replace(/[^ -~]/g, x => (y => Pinyin[y >> 7]?.[y & 127])(x.codePointAt(0) - Yi) ?? x);

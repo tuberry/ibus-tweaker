@@ -1,9 +1,7 @@
 // vim:fdm=syntax
 // by tuberry
-/* exported Field */
-'use strict';
 
-var Field = {
+export const Field = {
     FNTS: 'custom-font',
     IPMS: 'input-modes',
     UPDR: 'updates-dir',

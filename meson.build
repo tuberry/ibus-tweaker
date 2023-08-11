@@ -1,7 +1,7 @@
 project(
   'gnome-shell-extension-ibus-tweaker',
   license: 'GPL3+',
-  version: '45.alpha',
+  version: '45.beta',
 )
 
 NAME = 'IBus Tweaker'
