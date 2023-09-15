@@ -14,18 +14,16 @@ import GObject from 'gi://GObject';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import * as PanelMenu from 'resource:///org/gnome/shell/ui/panelMenu.js';
 import * as BoxPointer from 'resource:///org/gnome/shell/ui/boxpointer.js';
-import * as IBusManager from 'resource:///org/gnome/shell/misc/ibusManager.js';
-import * as Keyboard from 'resource:///org/gnome/shell/ui/status/keyboard.js';
 
 import { Field } from './const.js';
 import { s2py } from './pinyin.js';
 import { noop, fopen, execute } from './util.js';
-import { Fulu, BaseExtension, Destroyable, symbiose, omit, onus, getSelf, lightProxy, _ } from './fubar.js';
+import { Fulu, BaseExtension, Destroyable, manageSource, omit, getSignalHolder, getSelf, lightProxy, _ } from './fubar.js';
 
-const IBusMgr = IBusManager.getIBusManager();
-const IBusPopup = IBusMgr._candidatePopup;
+const InputManager = Main.panel.statusArea.keyboard._inputSourceManager;
+const IBusManager = InputManager._ibusManager;
+const IBusPopup = IBusManager._candidatePopup;
 const IBusPopupArea = IBusPopup._candidateArea;
-const InputManager = Keyboard.getInputSourceManager();
 
 const ClipHist = [];
 const Style = { AUTO: 0, LIGHT: 1, DARK: 2, SYSTEM: 3 };
@@ -46,16 +44,17 @@ function fuzzySearch(needle, haystack) {
 }
 
 function addStyleClass(tmp, src, aim, cb) {
-    for(let p in tmp) {
-        if(!(p in aim)) continue;
-        if(typeof tmp[p] === 'object') {
-            if(Array.isArray(tmp[p])) aim[p].forEach((x, i) => addStyleClass(tmp[p][i], src[p][i], x, cb));
-            else addStyleClass(tmp[p], src[p], aim[p], cb);
+    Object.entries(tmp).forEach(([k, v]) => {
+        if(!(k in aim)) return;
+        if(typeof v === 'string') {
+            aim.remove_style_class_name(aim[k]);
+            aim.add_style_class_name(cb ? cb(src[k]) : src[k]);
+        } else if(Array.isArray(v)) {
+            aim[k].forEach((x, i) => addStyleClass(v[i], src[k][i], x, cb));
         } else {
-            aim.remove_style_class_name(aim[p]);
-            aim.add_style_class_name(cb ? cb(src[p]) : src[p]);
+            addStyleClass(v, src[k], aim[k], cb);
         }
-    }
+    });
 }
 
 const TempPopup = {
@@ -90,9 +89,9 @@ class IBusAutoSwitch extends Destroyable {
 
     _buildWidgets(fulu) {
         this._fulu = fulu;
-        global.display.connectObject('notify::focus-window', () => this.toggleInputMode(), onus(this));
-        Main.overview.connectObject('hidden', () => this.setEmpty(), 'shown', () => this.setEmpty('#overview'), onus(this));
-        this._sbt = symbiose(this, () => this._fulu.set('modes', new GLib.Variant('a{s(ss)}', Object.fromEntries(this._modes)), this), {
+        global.display.connectObject('notify::focus-window', () => this.toggleInputMode(), getSignalHolder(this));
+        Main.overview.connectObject('hidden', () => this.setEmpty(), 'shown', () => this.setEmpty('#overview'), getSignalHolder(this));
+        this._src = manageSource(this, () => this._fulu.set('modes', new GLib.Variant('a{s(ss)}', Object.fromEntries(this._modes)), this), {
             keys: [x => x && Main.wm.removeKeybinding(Field.RKYS),
                 x => x && Main.wm.addKeybinding(Field.RKYS, this._fulu.gset, Meta.KeyBindingFlags.NONE, Shell.ActionMode.ALL, () => this.openRunDialog())],
         });
@@ -143,7 +142,7 @@ class IBusAutoSwitch extends Destroyable {
     }
 
     activateProp(key, state) {
-        IBusMgr.activateProperty(key, state ? 1 : 0);
+        IBusManager.activateProperty(key, state ? 1 : 0);
     }
 
     setEmpty(empty) {
@@ -173,13 +172,13 @@ class IBusAutoSwitch extends Destroyable {
     }
 
     set shortcut(shortcut) {
-        this._sbt.keys.revive(shortcut);
+        this._src.keys.refreshSource(shortcut);
     }
 
     openRunDialog() {
         if(!Main.runDialog || !this._dialogId) {
             Main.openRunDialog();
-            this._dialogId = Main.runDialog.connectObject('notify::visible', () => this.setEmpty(Main.runDialog.visible && '#run-dialog'), onus(this));
+            this._dialogId = Main.runDialog.connectObject('notify::visible', () => this.setEmpty(Main.runDialog.visible && '#run-dialog'), getSignalHolder(this));
             this.setEmpty('#run-dialog');
         } else {
             Main.openRunDialog();
@@ -191,7 +190,7 @@ class IBusFontSetting extends Destroyable {
     constructor(fulu) {
         super();
         this._fulu = fulu.attach({ fontname: [Field.FNTS, 'string'] }, this);
-        symbiose(this, () => {
+        manageSource(this, () => {
             IBusPopup.set_style('');
             IBusPopupArea._candidateBoxes.forEach(x => x._candidateLabel.set_style('') && x._indexLabel.set_style(''));
         });
@@ -216,7 +215,7 @@ class IBusFontSetting extends Destroyable {
 class IBusOrientation extends Destroyable {
     constructor(fulu) {
         super();
-        symbiose(this, () => { IBusPopupArea.setOrientation = this._originalSetOrientation; });
+        manageSource(this, () => { IBusPopupArea.setOrientation = this._originalSetOrientation; });
         this._originalSetOrientation = IBusPopupArea.setOrientation.bind(IBusPopupArea);
         this._fulu = fulu.attach({ orientation: [Field.ORNS, 'uint'] }, this);
         IBusPopupArea.setOrientation = noop;
@@ -233,7 +232,7 @@ class IBusPageButton extends Destroyable {
         IBusPopupArea._buttonBox.set_style('border-width: 0;');
         IBusPopupArea._previousButton.hide();
         IBusPopupArea._nextButton.hide();
-        symbiose(this, () => {
+        manageSource(this, () => {
             IBusPopupArea._buttonBox.set_style('');
             IBusPopupArea._previousButton.show();
             IBusPopupArea._nextButton.show();
@@ -246,7 +245,7 @@ class IBusThemeManager extends Destroyable {
         super();
         this._replaceStyle();
         this._bindSettings(fulu);
-        symbiose(this, () => this._restoreStyle());
+        manageSource(this, () => this._restoreStyle());
     }
 
     _bindSettings(fulu) {
@@ -319,13 +318,13 @@ class UpdatesIndicator extends Destroyable {
         this._addIndicator();
         this._buildWidgets();
         this._checkUpdates();
-        this._sbt.cycle.revive();
+        this._src.cycle.refreshSource();
     }
 
     _buildWidgets() {
-        this._sbt = symbiose(this, () => omit(this, '_btn'), {
+        this._src = manageSource(this, () => omit(this, '_btn'), {
             check: [clearTimeout, () => setTimeout(() => this._checkUpdates(), 10 * 1000)],
-            cycle: [clearInterval, () => setInterval(() => this._checkUpdates(), 60 * 60 * 1000)],
+            cycle: [clearInterval, () => setInterval(() => this._checkUpdates(), 3 * 60 * 60 * 1000)], // 3h
             watch: [x => x && x.cancel(), x => x && fopen(this.updatesdir).monitor(Gio.FileMonitorFlags.WATCH_MOVES, null)],
         });
     }
@@ -344,7 +343,7 @@ class UpdatesIndicator extends Destroyable {
     }
 
     _showUpdates(count) {
-        this._sbt.watch.revive(count)?.connect?.('changed', (...xs) => xs[3] === Gio.FileMonitorEvent.CHANGES_DONE_HINT && this._sbt.check.revive());
+        this._src.watch.refreshSource(count)?.connect?.('changed', (...xs) => xs[3] === Gio.FileMonitorEvent.CHANGES_DONE_HINT && this._src.check.refreshSource());
         if(count) {
             this._btn.label.set_text(count.toString());
             this._btn.show();
@@ -359,7 +358,7 @@ class UpdatesIndicator extends Destroyable {
         let icon = new St.Icon({ style_class: 'system-status-icon', icon_name: 'software-update-available-symbolic' });
         this._btn.label = new St.Label({ y_align: Clutter.ActorAlign.CENTER });
         [icon, this._btn.label].forEach(x => box.add_child(x));
-        this._btn.reactive = false;
+        this._btn.menu.toggle = () => this._btn.hide();
         this._btn.add_actor(box);
         this._btn.hide();
     }
@@ -400,7 +399,7 @@ class IBusClipArea extends St.BoxLayout {
         [this._nextButton, this._previousButton] = ['next', 'previous'].map(x => {
             let sgn = `${x}-page`;
             let btn = new St.Button({ style_class: `candidate-page-button candidate-page-button-${x}-button`, x_expand: true });
-            btn.connectObject('clicked', () => this.emit(sgn));
+            btn.connect('clicked', () => this.emit(sgn));
             this._buttonBox.add(btn);
             return btn;
         });
@@ -533,19 +532,19 @@ class IBusClipHistory extends Destroyable {
         super();
         this._buildWidgets(fulu);
         this._bindSettings();
-        this._sbt.keys.revive(true);
+        this._src.keys.refreshSource(true);
     }
 
     _buildWidgets(fulu) {
         this._fulu = fulu;
         this._ptr = new Clutter.Actor({ opacity: 0 }); // workaround for CandidatePopup._dummyCursor jumping with arrow keys
         Main.layoutManager.uiGroup.add_actor(this._ptr);
-        this._sbt = symbiose(this, () => omit(this, '_ptr', '_pop'), {
+        this._src = manageSource(this, () => omit(this, '_ptr', '_pop'), {
             keys: [x => x && Main.wm.removeKeybinding(Field.CKYS),
                 x => x && Main.wm.addKeybinding(Field.CKYS, this._fulu.gset, Meta.KeyBindingFlags.NONE, Shell.ActionMode.ALL, () => this.summon())],
-            commit: [clearTimeout, x => x && setTimeout(() => IBusMgr._panelService?.commit_text(IBus.Text.new_from_string(x)), 30)],
+            commit: [clearTimeout, x => x && setTimeout(() => IBusManager._panelService?.commit_text(IBus.Text.new_from_string(x)), 30)],
         });
-        global.display.get_selection().connectObject('owner-changed', this.onClipboardChanged.bind(this), onus(this));
+        global.display.get_selection().connectObject('owner-changed', this.onClipboardChanged.bind(this), getSignalHolder(this));
     }
 
     _bindSettings() {
@@ -556,28 +555,28 @@ class IBusClipHistory extends Destroyable {
     }
 
     summon() {
-        if(this._pop || !IBusMgr._ready || Main.overview._shown) return;
+        if(this._pop || !IBusManager._ready || Main.overview._shown) return;
         this._pop = new IBusClipPopup(this.page_btn);
-        this._pop.connectObject('captured-event', this.onCapturedEvent.bind(this), onus(this));
+        this._pop.connectObject('captured-event', this.onCapturedEvent.bind(this), getSignalHolder(this));
         this._pop._area.connectObject('cursor-up', () => { this.offset = -1; },
             'cursor-down', () => { this.offset = 1; },
             'next-page', () => { this.offset = this.page_size; },
             'candidate-clicked', this.candidateClicked.bind(this),
-            'previous-page', () => { this.offset = -this.page_size; }, onus(this));
-        this._preedit = '';
+            'previous-page', () => { this.offset = -this.page_size; }, getSignalHolder(this));
         this._lookup = [...ClipHist];
+        this._preedit = '';
         this.cursor = 0;
         let { x, y, width, height } = IBusPopup._dummyCursor;
         this._ptr.set_position(x, y);
         this._ptr.set_size(width, height);
-        this._pop.summon(IBusPopup._dummyCursor);
+        this._pop.summon(this._ptr);
     }
 
-    onClipboardChanged(_sel, type, _src) {
+    onClipboardChanged(_sel, type) {
         if(type !== St.ClipboardType.CLIPBOARD) return;
         St.Clipboard.get_default().get_text(St.ClipboardType.CLIPBOARD, (_clip, text) => {
             if(!text) return;
-            let index = ClipHist.findIndex(([x]) => x === text);
+            let index = ClipHist.findIndex(x => x[0] === text);
             if(index < 0) {
                 ClipHist.unshift([text, visibilize(ellipsize(text)), s2py(text.toLowerCase())]);
                 while(ClipHist.length > 64) ClipHist.pop();
@@ -650,7 +649,7 @@ class IBusClipHistory extends Destroyable {
     }
 
     commitAt(index) {
-        this._sbt.commit.revive(this._lookup[this._start + index]?.at(0));
+        this._src.commit.refreshSource(this._lookup[this._start + index]?.at(0));
     }
 
     deleteCurrent() {
@@ -699,7 +698,7 @@ class IBusTweaker extends Destroyable {
     _buildWidgets(gset) {
         this._tweaks = {};
         this._fulu = new Fulu({}, gset, this, 'props');
-        symbiose(this, () => omit(this._tweaks, ...Object.keys(this._tweaks)));
+        manageSource(this, () => omit(this._tweaks, ...Object.keys(this._tweaks)));
     }
 
     _bindSettings() {
