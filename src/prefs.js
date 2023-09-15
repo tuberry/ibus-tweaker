@@ -10,10 +10,6 @@ import { Field } from './const.js';
 
 const { _ } = UI;
 
-export function buildPrefsWidget() {
-    return new IBusTweakerPrefs();
-}
-
 class IBusTweakerPrefs extends Adw.PreferencesGroup {
     static {
         GObject.registerClass(this);
@@ -40,8 +36,8 @@ class IBusTweakerPrefs extends Adw.PreferencesGroup {
             TSTL: ['selected', new UI.Drop([_('Auto'), _('Light'), _('Dark'), _('System')])],
             THMS: ['selected', new UI.Drop([_('Red'), _('Green'), _('Orange'), _('Blue'), _('Purple'), _('Turquoise'), _('Grey')])],
         }, gset);
-        this._blk.CKYS = new UI.Keys(gset, Field.CKYS);
-        this._blk.RKYS = new UI.Keys(gset, Field.RKYS);
+        this._blk.CKYS = new UI.Keys({ gset, key: Field.CKYS });
+        this._blk.RKYS = new UI.Keys({ gset, key: Field.RKYS });
         this._blk.ATSW.bind_property('active', this._blk.DLG, 'sensitive', GObject.BindingFlags.DEFAULT);
         this._blk.ATSW.connect('notify::active', w => this._blk.RKYS.set_sensitive(w.active && this._blk.DLG.active));
         this._blk.DLG.set_sensitive(this._blk.ATSW.active);
@@ -62,4 +58,3 @@ class IBusTweakerPrefs extends Adw.PreferencesGroup {
 }
 
 export default class PrefsWidget extends UI.Prefs { $klass = IBusTweakerPrefs; }
-

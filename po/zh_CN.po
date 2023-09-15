@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: gnome-shell-extension-ibus-tweaker 35\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2023-02-10 05:36+0800\n"
+"POT-Creation-Date: 2023-09-22 00:20+0800\n"
 "PO-Revision-Date: 2021-08-18 14:09+0800\n"
 "Last-Translator: Automatically generated\n"
 "Language-Team: none\n"
@@ -17,108 +17,124 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 
-#: src/ui.js:32
+#: src/ui.js:280
+msgid "All"
+msgstr "全部"
+
+#: src/ui.js:280
+msgid "Normal"
+msgstr "常规"
+
+#: src/ui.js:280
+msgid "Symbolic"
+msgstr "符号"
+
+#: src/ui.js:329
 msgid "Clear"
 msgstr "清除"
 
-#: src/ui.js:266
+#: src/ui.js:437
+msgid "Mismatched filetype"
+msgstr "文件类型不匹配"
+
+#: src/ui.js:583
 msgid "Click or press ENTER to commit changes"
 msgstr "单击或按回车提交更改"
 
-#: src/prefs.js:42
+#: src/prefs.js:34
 msgid "Page size"
 msgstr "页面容量"
 
-#: src/prefs.js:43
+#: src/prefs.js:35
 msgid "Vertical"
 msgstr "竖直"
 
-#: src/prefs.js:43
+#: src/prefs.js:35
 msgid "Horizontal"
 msgstr "水平"
 
-#: src/prefs.js:45
+#: src/prefs.js:36
 msgid "Auto"
 msgstr "自动"
 
-#: src/prefs.js:45
+#: src/prefs.js:36
 msgid "Light"
 msgstr "浅色"
 
-#: src/prefs.js:45
+#: src/prefs.js:36
 msgid "Dark"
 msgstr "深色"
 
-#: src/prefs.js:45
+#: src/prefs.js:36
 msgid "System"
 msgstr "系统"
 
-#: src/prefs.js:46
+#: src/prefs.js:37
 msgid "Red"
 msgstr "玫瑰红"
 
-#: src/prefs.js:46
+#: src/prefs.js:37
 msgid "Green"
 msgstr "薄荷绿"
 
-#: src/prefs.js:46
+#: src/prefs.js:37
 msgid "Orange"
 msgstr "热带橙"
 
-#: src/prefs.js:46
+#: src/prefs.js:37
 msgid "Blue"
 msgstr "科技蓝"
 
-#: src/prefs.js:46
+#: src/prefs.js:37
 msgid "Purple"
 msgstr "木槿紫"
 
-#: src/prefs.js:46
+#: src/prefs.js:37
 msgid "Turquoise"
 msgstr "水鸭青"
 
-#: src/prefs.js:46
+#: src/prefs.js:37
 msgid "Grey"
 msgstr "混沌灰"
 
-#: src/prefs.js:58
+#: src/prefs.js:49
 msgid "Hide page buttons"
 msgstr "隐藏页按钮"
 
-#: src/prefs.js:59
+#: src/prefs.js:50
 msgid "Autoswitch input mode"
 msgstr "中英文切换"
 
-#: src/prefs.js:60
-msgid "Candidates orientation"
-msgstr "候选框方向"
-
-#: src/prefs.js:61
+#: src/prefs.js:51
 msgid "Run dialog"
 msgstr "运行命令框"
 
-#: src/prefs.js:62
+#: src/prefs.js:52
+msgid "Candidates orientation"
+msgstr "候选框方向"
+
+#: src/prefs.js:53
 msgid "MS IME theme"
 msgstr "仿微软主题"
 
-#: src/prefs.js:63
+#: src/prefs.js:54
 msgid "Clipboard history"
 msgstr "剪贴板历史"
 
-#: src/prefs.js:64
+#: src/prefs.js:55
 msgid "Use custom font"
 msgstr "自定义字体"
 
-#: src/extension.js:442
+#: src/extension.js:513
 msgid "📋："
 msgstr "📋："
 
-#: src/extension.js:446
+#: src/extension.js:517
 #, javascript-format
 msgid "%dC"
 msgstr "%d字"
 
-#: src/extension.js:558
+#: src/extension.js:642
 msgid "Empty history."
 msgstr "空空如也。"
 

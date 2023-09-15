@@ -14,18 +14,19 @@ import GObject from 'gi://GObject';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import * as PanelMenu from 'resource:///org/gnome/shell/ui/panelMenu.js';
 import * as BoxPointer from 'resource:///org/gnome/shell/ui/boxpointer.js';
-import * as IBusManager from 'resource:///org/gnome/shell/misc/ibusManager.js';
-import * as Keyboard from 'resource:///org/gnome/shell/ui/status/keyboard.js';
 
 import { Field } from './const.js';
 import { s2py } from './pinyin.js';
 import { noop, fopen, execute } from './util.js';
-import { Fulu, BaseExtension, Destroyable, symbiose, omit, onus, getSelf, lightProxy, _ } from './fubar.js';
+import { Fulu, ExtensionBase, Destroyable, symbiose, omit, onus, getSelf, lightProxy, _ } from './fubar.js';
 
-const IBusMgr = IBusManager.getIBusManager();
-const IBusPopup = IBusMgr._candidatePopup;
+const InputManager = Main.panel.statusArea.keyboard._inputSourceManager;
+const IBusManager = InputManager._ibusManager;
+const IBusPopup = IBusManager._candidatePopup;
 const IBusPopupArea = IBusPopup._candidateArea;
-const InputManager = Keyboard.getInputSourceManager();
+
+console.assert([InputManager, IBusManager, IBusPopup, IBusPopupArea].every(x => x !== undefined),
+    { InputManager, IBusManager, IBusPopup, IBusPopupArea });
 
 const ClipHist = [];
 const Style = { AUTO: 0, LIGHT: 1, DARK: 2, SYSTEM: 3 };
@@ -46,16 +47,17 @@ function fuzzySearch(needle, haystack) {
 }
 
 function addStyleClass(tmp, src, aim, cb) {
-    for(let p in tmp) {
-        if(!(p in aim)) continue;
-        if(typeof tmp[p] === 'object') {
-            if(Array.isArray(tmp[p])) aim[p].forEach((x, i) => addStyleClass(tmp[p][i], src[p][i], x, cb));
-            else addStyleClass(tmp[p], src[p], aim[p], cb);
+    Object.entries(tmp).forEach(([k, v]) => {
+        if(!(k in aim)) return;
+        if(typeof v === 'string') {
+            aim.remove_style_class_name(aim[k]);
+            aim.add_style_class_name(cb ? cb(src[k]) : src[k]);
+        } else if(Array.isArray(v)) {
+            aim[k].forEach((x, i) => addStyleClass(v[i], src[k][i], x, cb));
         } else {
-            aim.remove_style_class_name(aim[p]);
-            aim.add_style_class_name(cb ? cb(src[p]) : src[p]);
+            addStyleClass(v, src[k], aim[k], cb);
         }
-    }
+    });
 }
 
 const TempPopup = {
@@ -143,7 +145,7 @@ class IBusAutoSwitch extends Destroyable {
     }
 
     activateProp(key, state) {
-        IBusMgr.activateProperty(key, state ? 1 : 0);
+        IBusManager.activateProperty(key, state ? 1 : 0);
     }
 
     setEmpty(empty) {
@@ -325,7 +327,7 @@ class UpdatesIndicator extends Destroyable {
     _buildWidgets() {
         this._sbt = symbiose(this, () => omit(this, '_btn'), {
             check: [clearTimeout, () => setTimeout(() => this._checkUpdates(), 10 * 1000)],
-            cycle: [clearInterval, () => setInterval(() => this._checkUpdates(), 60 * 60 * 1000)],
+            cycle: [clearInterval, () => setInterval(() => this._checkUpdates(), 3 * 60 * 60 * 1000)], // 3h
             watch: [x => x && x.cancel(), x => x && fopen(this.updatesdir).monitor(Gio.FileMonitorFlags.WATCH_MOVES, null)],
         });
     }
@@ -359,8 +361,8 @@ class UpdatesIndicator extends Destroyable {
         let icon = new St.Icon({ style_class: 'system-status-icon', icon_name: 'software-update-available-symbolic' });
         this._btn.label = new St.Label({ y_align: Clutter.ActorAlign.CENTER });
         [icon, this._btn.label].forEach(x => box.add_child(x));
-        this._btn.reactive = false;
-        this._btn.add_actor(box);
+        this._btn.menu.toggle = () => this._btn.hide();
+        this._btn.add_child(box);
         this._btn.hide();
     }
 }
@@ -400,7 +402,7 @@ class IBusClipArea extends St.BoxLayout {
         [this._nextButton, this._previousButton] = ['next', 'previous'].map(x => {
             let sgn = `${x}-page`;
             let btn = new St.Button({ style_class: `candidate-page-button candidate-page-button-${x}-button`, x_expand: true });
-            btn.connectObject('clicked', () => this.emit(sgn));
+            btn.connect('clicked', () => this.emit(sgn));
             this._buttonBox.add(btn);
             return btn;
         });
@@ -539,11 +541,11 @@ class IBusClipHistory extends Destroyable {
     _buildWidgets(fulu) {
         this._fulu = fulu;
         this._ptr = new Clutter.Actor({ opacity: 0 }); // workaround for CandidatePopup._dummyCursor jumping with arrow keys
-        Main.layoutManager.uiGroup.add_actor(this._ptr);
+        Main.layoutManager.uiGroup.add_child(this._ptr);
         this._sbt = symbiose(this, () => omit(this, '_ptr', '_pop'), {
             keys: [x => x && Main.wm.removeKeybinding(Field.CKYS),
                 x => x && Main.wm.addKeybinding(Field.CKYS, this._fulu.gset, Meta.KeyBindingFlags.NONE, Shell.ActionMode.ALL, () => this.summon())],
-            commit: [clearTimeout, x => x && setTimeout(() => IBusMgr._panelService?.commit_text(IBus.Text.new_from_string(x)), 30)],
+            commit: [clearTimeout, x => x && setTimeout(() => IBusManager._panelService?.commit_text(IBus.Text.new_from_string(x)), 30)],
         });
         global.display.get_selection().connectObject('owner-changed', this.onClipboardChanged.bind(this), onus(this));
     }
@@ -556,7 +558,7 @@ class IBusClipHistory extends Destroyable {
     }
 
     summon() {
-        if(this._pop || !IBusMgr._ready || Main.overview._shown) return;
+        if(this._pop || !IBusManager._ready || Main.overview._shown) return;
         this._pop = new IBusClipPopup(this.page_btn);
         this._pop.connectObject('captured-event', this.onCapturedEvent.bind(this), onus(this));
         this._pop._area.connectObject('cursor-up', () => { this.offset = -1; },
@@ -564,20 +566,20 @@ class IBusClipHistory extends Destroyable {
             'next-page', () => { this.offset = this.page_size; },
             'candidate-clicked', this.candidateClicked.bind(this),
             'previous-page', () => { this.offset = -this.page_size; }, onus(this));
-        this._preedit = '';
         this._lookup = [...ClipHist];
+        this._preedit = '';
         this.cursor = 0;
         let { x, y, width, height } = IBusPopup._dummyCursor;
         this._ptr.set_position(x, y);
         this._ptr.set_size(width, height);
-        this._pop.summon(IBusPopup._dummyCursor);
+        this._pop.summon(this._ptr);
     }
 
-    onClipboardChanged(_sel, type, _src) {
+    onClipboardChanged(_sel, type) {
         if(type !== St.ClipboardType.CLIPBOARD) return;
         St.Clipboard.get_default().get_text(St.ClipboardType.CLIPBOARD, (_clip, text) => {
             if(!text) return;
-            let index = ClipHist.findIndex(([x]) => x === text);
+            let index = ClipHist.findIndex(x => x[0] === text);
             if(index < 0) {
                 ClipHist.unshift([text, visibilize(ellipsize(text)), s2py(text.toLowerCase())]);
                 while(ClipHist.length > 64) ClipHist.pop();
@@ -720,4 +722,4 @@ class IBusTweaker extends Destroyable {
     }
 }
 
-export default class Extension extends BaseExtension { $klass = IBusTweaker; }
+export default class Extension extends ExtensionBase { $klass = IBusTweaker; }
