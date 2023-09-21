@@ -25,9 +25,6 @@ const IBusManager = InputManager._ibusManager;
 const IBusPopup = IBusManager._candidatePopup;
 const IBusPopupArea = IBusPopup._candidateArea;
 
-console.assert([InputManager, IBusManager, IBusPopup, IBusPopupArea].every(x => x !== undefined),
-    { InputManager, IBusManager, IBusPopup, IBusPopupArea });
-
 const ClipHist = [];
 const Style = { AUTO: 0, LIGHT: 1, DARK: 2, SYSTEM: 3 };
 const Indices = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'];
@@ -347,7 +344,7 @@ class UpdatesIndicator extends Destroyable {
 
     _showUpdates(count) {
         this._sbt.watch.revive(count)?.connect?.('changed', (...xs) => xs[3] === Gio.FileMonitorEvent.CHANGES_DONE_HINT && this._sbt.check.revive());
-        if(count) {
+        if(count > 0) {
             this._btn.label.set_text(count.toString());
             this._btn.show();
         } else {
