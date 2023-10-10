@@ -18,7 +18,7 @@ import * as BoxPointer from 'resource:///org/gnome/shell/ui/boxpointer.js';
 import { Field } from './const.js';
 import { s2py } from './pinyin.js';
 import { noop, fopen, execute } from './util.js';
-import { Fulu, BaseExtension, Destroyable, manageSource, omit, getSignalHolder, getSelf, lightProxy, _ } from './fubar.js';
+import { Fulu, ExtensionBase, Destroyable, manageSource, omit, getSignalHolder, getSelf, lightProxy, _ } from './fubar.js';
 
 const InputManager = Main.panel.statusArea.keyboard._inputSourceManager;
 const IBusManager = InputManager._ibusManager;
@@ -344,7 +344,7 @@ class UpdatesIndicator extends Destroyable {
 
     _showUpdates(count) {
         this._src.watch.refreshSource(count)?.connect?.('changed', (...xs) => xs[3] === Gio.FileMonitorEvent.CHANGES_DONE_HINT && this._src.check.refreshSource());
-        if(count) {
+        if(count > 0) {
             this._btn.label.set_text(count.toString());
             this._btn.show();
         } else {
@@ -359,7 +359,7 @@ class UpdatesIndicator extends Destroyable {
         this._btn.label = new St.Label({ y_align: Clutter.ActorAlign.CENTER });
         [icon, this._btn.label].forEach(x => box.add_child(x));
         this._btn.menu.toggle = () => this._btn.hide();
-        this._btn.add_actor(box);
+        this._btn.add_child(box);
         this._btn.hide();
     }
 }
@@ -538,7 +538,7 @@ class IBusClipHistory extends Destroyable {
     _buildWidgets(fulu) {
         this._fulu = fulu;
         this._ptr = new Clutter.Actor({ opacity: 0 }); // workaround for CandidatePopup._dummyCursor jumping with arrow keys
-        Main.layoutManager.uiGroup.add_actor(this._ptr);
+        Main.layoutManager.uiGroup.add_child(this._ptr);
         this._src = manageSource(this, () => omit(this, '_ptr', '_pop'), {
             keys: [x => x && Main.wm.removeKeybinding(Field.CKYS),
                 x => x && Main.wm.addKeybinding(Field.CKYS, this._fulu.gset, Meta.KeyBindingFlags.NONE, Shell.ActionMode.ALL, () => this.summon())],
@@ -719,4 +719,4 @@ class IBusTweaker extends Destroyable {
     }
 }
 
-export default class Extension extends BaseExtension { $klass = IBusTweaker; }
+export default class Extension extends ExtensionBase { $klass = IBusTweaker; }
