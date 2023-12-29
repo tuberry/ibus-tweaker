@@ -50,12 +50,13 @@ $colors: ();
     -arrow-border-radius: 0.8125em;
 }
 
-.#{$pfx}-page-button-previous {
-    border-right-width: 0;
+.#{$pfx}-label {
+    font-size: 1.25em;
 }
 
 .#{$pfx}-index {
     @include fg(0.4);
+    padding: 0.25em 0.25em 0 0;
 }
 
 .#{$pfx}-page-button-box {
