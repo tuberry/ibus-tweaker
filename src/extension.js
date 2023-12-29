@@ -17,8 +17,8 @@ import * as BoxPointer from 'resource:///org/gnome/shell/ui/boxpointer.js';
 
 import { Field } from './const.js';
 import { s2py } from './pinyin.js';
-import { noop, fopen, execute } from './util.js';
-import { Fulu, ExtensionBase, Destroyable, symbiose, omit, onus, getSelf, lightProxy, _ } from './fubar.js';
+import { noop, fopen, execute, id as idf } from './util.js';
+import { Fulu, ExtensionBase, Destroyable, symbiose, omit, connect, getSelf, lightProxy, _ } from './fubar.js';
 
 const InputManager = Main.panel.statusArea.keyboard._inputSourceManager;
 const IBusManager = InputManager._ibusManager;
@@ -28,9 +28,30 @@ const IBusPopupArea = IBusPopup._candidateArea;
 const ClipHist = [];
 const Style = { AUTO: 0, LIGHT: 1, DARK: 2, SYSTEM: 3 };
 const Indices = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'];
+const PopupStyleClass = {
+    style_class: '',
+    _candidateArea: {
+        _candidateBoxes: Array(16).fill({
+            style_class: '',
+            _indexLabel: { style_class: '' },
+            _candidateLabel: { style_class: '' },
+        }),
+        _buttonBox: { style_class: '' },
+        _previousButton: { style_class: '' },
+        _nextButton: { style_class: '' },
+    },
+    bin: { child: { style_class: '' } },
+    _preeditText: { style_class: '' },
+    _auxText: { style_class: '' },
+};
 
 const ellipsize = (s, l = 20) => s.length > 2 * l ? `${s.slice(0, l)}\u2026${s.slice(-l)}` : s;
-const visibilize = (s, p = [[/\n|\r/g, '\u21b5'], ['\t', '\u21e5']]) => p.reduce((a, x) => a.replaceAll(...x), s);
+const visibilize = (s, t = [[/\n|\r/g, '\u21b5'], ['\t', '\u21e5']]) => t.reduce((p, x) => p.replaceAll(...x), s);
+
+function syncStyleClass(aim, src, func = idf, obj = PopupStyleClass) {
+    Object.keys(obj).forEach(k => obj[k] instanceof Object
+        ? aim[k] && syncStyleClass(aim[k], src[k], func, obj[k]) : k === 'style_class' && (aim[k] = func(src[k])));
+}
 
 function fuzzySearch(needle, haystack) {
     // Ref: https://github.com/bevacqua/fuzzysearch
@@ -43,43 +64,6 @@ function fuzzySearch(needle, haystack) {
     return true;
 }
 
-function addStyleClass(tmp, src, aim, cb) {
-    Object.entries(tmp).forEach(([k, v]) => {
-        if(!(k in aim)) return;
-        if(typeof v === 'string') {
-            aim.remove_style_class_name(aim[k]);
-            aim.add_style_class_name(cb ? cb(src[k]) : src[k]);
-        } else if(Array.isArray(v)) {
-            aim[k].forEach((x, i) => addStyleClass(v[i], src[k][i], x, cb));
-        } else {
-            addStyleClass(v, src[k], aim[k], cb);
-        }
-    });
-}
-
-const TempPopup = {
-    style_class: 'candidate-popup-boxpointer',
-    _candidateArea: {
-        _candidateBoxes: Array(16).fill({
-            style_class: 'candidate-box',
-            _indexLabel: { style_class: 'candidate-index' },
-            _candidateLabel: { style_class: 'candidate-label' },
-        }),
-        _buttonBox: { style_class: 'candidate-page-button-box' },
-        _previousButton: {
-            style_class: 'candidate-page-button candidate-page-button-previous button',
-        },
-        _nextButton: {
-            style_class: 'candidate-page-button candidate-page-button-next button',
-        },
-    },
-    bin: {
-        child: { style_class: 'candidate-popup-content' },
-    },
-    _preeditText: { style_class: 'candidate-popup-text' },
-    _auxText: { style_class: 'candidate-popup-text' },
-};
-
 class IBusAutoSwitch extends Destroyable {
     constructor(fulu) {
         super();
@@ -89,8 +73,8 @@ class IBusAutoSwitch extends Destroyable {
 
     _buildWidgets(fulu) {
         this._fulu = fulu;
-        global.display.connectObject('notify::focus-window', () => this.toggleInputMode(), onus(this));
-        Main.overview.connectObject('hidden', () => this.setEmpty(), 'shown', () => this.setEmpty('#overview'), onus(this));
+        connect(this, [global.display, 'notify::focus-window', () => this.toggleInputMode()],
+            [Main.overview, 'hidden', () => this.setEmpty(), 'shown', () => this.setEmpty('#overview')]);
         this._sbt = symbiose(this, () => this._fulu.set('modes', new GLib.Variant('a{s(ss)}', Object.fromEntries(this._modes)), this), {
             keys: [x => x && Main.wm.removeKeybinding(Field.RKYS),
                 x => x && Main.wm.addKeybinding(Field.RKYS, this._fulu.gset, Meta.KeyBindingFlags.NONE, Shell.ActionMode.ALL, () => this.openRunDialog())],
@@ -152,8 +136,7 @@ class IBusAutoSwitch extends Destroyable {
 
     saveInputMode(win, id, mode) {
         this._modes.set(win, [id, mode]);
-        // FIXME: Alt-Tab spamming focus-window signals on 44.beta?
-        // this._fulu.set('modes', new GLib.Variant('a{s(ss)}', Object.fromEntries(this._modes)), this);
+        this._fulu.set('modes', new GLib.Variant('a{s(ss)}', Object.fromEntries(this._modes)), this);
     }
 
     checkInputMode(win, id, mode) {
@@ -176,12 +159,13 @@ class IBusAutoSwitch extends Destroyable {
     }
 
     openRunDialog() {
-        if(!Main.runDialog || !this._dialogId) {
+        if(Main.runDialog && this._dialogInited) {
             Main.openRunDialog();
-            this._dialogId = Main.runDialog.connectObject('notify::visible', () => this.setEmpty(Main.runDialog.visible && '#run-dialog'), onus(this));
-            this.setEmpty('#run-dialog');
         } else {
             Main.openRunDialog();
+            connect(this, [Main.runDialog, 'notify::visible', () => this.setEmpty(Main.runDialog.visible && '#run-dialog')]);
+            this.setEmpty('#run-dialog');
+            this._dialogInited = true;
         }
     }
 }
@@ -189,26 +173,18 @@ class IBusAutoSwitch extends Destroyable {
 class IBusFontSetting extends Destroyable {
     constructor(fulu) {
         super();
+        this._original_style = IBusPopup.get_style();
+        symbiose(this, () => IBusPopup.set_style(this._original_style));
         this._fulu = fulu.attach({ fontname: [Field.FNTS, 'string'] }, this);
-        symbiose(this, () => {
-            IBusPopup.set_style('');
-            IBusPopupArea._candidateBoxes.forEach(x => x._candidateLabel.set_style('') && x._indexLabel.set_style(''));
-        });
     }
 
     set fontname(fontname) {
-        let scale = 13 / 16,
-            desc = Pango.FontDescription.from_string(fontname),
-            getWeight = () => { try { return desc.get_weight(); } catch(e) { return parseInt(e.message); } }; // workaround for Pango.Weight enumeration exception (eg: 290)
+        let desc = Pango.FontDescription.from_string(fontname);
+        let getWeight = () => { try { return desc.get_weight(); } catch(e) { return parseInt(e.message); } }; // HACK: workaround for Pango.Weight enumeration exception (eg: 290)
         IBusPopup.set_style(`font-weight: ${getWeight()};
                              font-family: "${desc.get_family()}";
-                             font-size: ${(desc.get_size() / Pango.SCALE) * scale}pt;
-                             font-style: ${Object.keys(Pango.Style)[desc.get_style()].toLowerCase()};`
-        );
-        IBusPopupArea._candidateBoxes.forEach(x => {
-            x._candidateLabel.set_style(`font-size: ${desc.get_size() / Pango.SCALE}pt;`);
-            x._indexLabel.set_style(`padding: ${(1 - scale) * 2}em 0.25em 0 0;`);
-        });
+                             font-style: ${Object.keys(Pango.Style)[desc.get_style()].toLowerCase()};
+                             font-size: ${desc.get_size() / Pango.SCALE}${desc.get_size_is_absolute() ? 'px' : 'pt'};`);
     }
 }
 
@@ -297,7 +273,7 @@ class IBusThemeManager extends Destroyable {
 
     _replaceStyle() {
         this._palette = ['red', 'green', 'orange', 'blue', 'purple', 'turquoise', 'grey'];
-        addStyleClass(TempPopup, TempPopup, IBusPopup, x => x.replace(/candidate/g, 'ibus-tweaker-candidate'));
+        syncStyleClass(IBusPopup, PopupStyleClass, x => x.replace(/candidate/g, 'ibus-tweaker-candidate'));
     }
 
     _restoreStyle() {
@@ -307,7 +283,7 @@ class IBusThemeManager extends Destroyable {
         } else {
             IBusPopup.remove_style_class_name(this.color);
         }
-        addStyleClass(TempPopup, TempPopup, IBusPopup);
+        syncStyleClass(IBusPopup, PopupStyleClass);
     }
 }
 
@@ -491,7 +467,7 @@ class IBusClipPopup extends BoxPointer.BoxPointer {
     }
 
     _replaceStyle(page_btn) {
-        addStyleClass(TempPopup, IBusPopup, this);
+        syncStyleClass(this, IBusPopup);
         this.set_style(IBusPopup.get_style());
         let [box] = IBusPopup._candidateArea._candidateBoxes,
             i_style = box._indexLabel.get_style(),
@@ -537,14 +513,14 @@ class IBusClipHistory extends Destroyable {
 
     _buildWidgets(fulu) {
         this._fulu = fulu;
-        this._ptr = new Clutter.Actor({ opacity: 0 }); // workaround for CandidatePopup._dummyCursor jumping with arrow keys
+        this._ptr = new Clutter.Actor({ opacity: 0, x: 1, y: 1 }); // workaround for the cursor jumping
         Main.layoutManager.uiGroup.add_child(this._ptr);
         this._sbt = symbiose(this, () => omit(this, '_ptr', '_pop'), {
             keys: [x => x && Main.wm.removeKeybinding(Field.CKYS),
                 x => x && Main.wm.addKeybinding(Field.CKYS, this._fulu.gset, Meta.KeyBindingFlags.NONE, Shell.ActionMode.ALL, () => this.summon())],
             commit: [clearTimeout, x => x && setTimeout(() => IBusManager._panelService?.commit_text(IBus.Text.new_from_string(x)), 30)],
         });
-        global.display.get_selection().connectObject('owner-changed', this.onClipboardChanged.bind(this), onus(this));
+        connect(this, [global.display.get_selection(), 'owner-changed', this.onClipboardChanged.bind(this)]);
     }
 
     _bindSettings() {
@@ -557,12 +533,12 @@ class IBusClipHistory extends Destroyable {
     summon() {
         if(this._pop || !IBusManager._ready || Main.overview._shown) return;
         this._pop = new IBusClipPopup(this.page_btn);
-        this._pop.connectObject('captured-event', this.onCapturedEvent.bind(this), onus(this));
-        this._pop._area.connectObject('cursor-up', () => { this.offset = -1; },
-            'cursor-down', () => { this.offset = 1; },
-            'next-page', () => { this.offset = this.page_size; },
-            'candidate-clicked', this.candidateClicked.bind(this),
-            'previous-page', () => { this.offset = -this.page_size; }, onus(this));
+        connect(this, [this._pop, 'captured-event', this.onCapturedEvent.bind(this)],
+            [this._pop._area, 'cursor-up', () => { this.offset = -1; },
+                'cursor-down', () => { this.offset = 1; },
+                'next-page', () => { this.offset = this.page_size; },
+                'candidate-clicked', this.candidateClicked.bind(this),
+                'previous-page', () => { this.offset = -this.page_size; }]);
         this._lookup = [...ClipHist];
         this._preedit = '';
         this.cursor = 0;
@@ -697,6 +673,8 @@ class IBusTweaker extends Destroyable {
 
     _buildWidgets(gset) {
         this._tweaks = {};
+        IBusPopup._dummyCursor.set_position(1, 1); // HACK: workaround for popup jumping
+        syncStyleClass(PopupStyleClass, IBusPopup);
         this._fulu = new Fulu({}, gset, this, 'props');
         symbiose(this, () => omit(this._tweaks, ...Object.keys(this._tweaks)));
     }

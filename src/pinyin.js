@@ -170,4 +170,4 @@ const Pinyin = [
     'chyjlbtzkycqwlpgpyllgkdldlgkgqbgychjxy',
 ];
 
-export const s2py = s => s.replaceAll(/\p{sc=Han}/gu, x => (y => Pinyin[y >> 7]?.[y & 127])(x.codePointAt(0) - Yi) ?? x);
+export const s2py = s => s.replaceAll(/\p{sc=Han}/gu, x => (y => Pinyin[y >>> 7]?.[y & 127])(x.codePointAt(0) - Yi) ?? x);
