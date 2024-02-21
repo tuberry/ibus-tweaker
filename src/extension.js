@@ -1,8 +1,7 @@
-// vim:fdm=syntax
-// by tuberry
+// SPDX-FileCopyrightText: tuberry
+// SPDX-License-Identifier: GPL-3.0-or-later
 
 import St from 'gi://St';
-import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
 import Meta from 'gi://Meta';
 import IBus from 'gi://IBus';
@@ -12,43 +11,42 @@ import Clutter from 'gi://Clutter';
 import GObject from 'gi://GObject';
 
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
-import * as PanelMenu from 'resource:///org/gnome/shell/ui/panelMenu.js';
 import * as BoxPointer from 'resource:///org/gnome/shell/ui/boxpointer.js';
 
-import { Field } from './const.js';
-import { s2py } from './pinyin.js';
-import { noop, fopen, execute, id as idf } from './util.js';
-import { Fulu, ExtensionBase, Destroyable, symbiose, omit, connect, getSelf, lightProxy, _ } from './fubar.js';
+import {Field} from './const.js';
+import {s2py} from './pinyin.js';
+import {noop, hook, id as echo, has} from './util.js';
+import {Fulu, ExtensionBase, Destroyable, symbiose, omit, connect, bindNight, _} from './fubar.js';
 
 const InputManager = Main.panel.statusArea.keyboard._inputSourceManager;
 const IBusManager = InputManager._ibusManager;
 const IBusPopup = IBusManager._candidatePopup;
-const IBusPopupArea = IBusPopup._candidateArea;
+const IBusArea = IBusPopup._candidateArea;
 
 const ClipHist = [];
-const Style = { AUTO: 0, LIGHT: 1, DARK: 2, SYSTEM: 3 };
+const Style = {AUTO: 0, LIGHT: 1, DARK: 2, SYSTEM: 3};
 const Indices = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'];
 const PopupStyleClass = {
     style_class: '',
     _candidateArea: {
         _candidateBoxes: Array(16).fill({
             style_class: '',
-            _indexLabel: { style_class: '' },
-            _candidateLabel: { style_class: '' },
+            _indexLabel: {style_class: ''},
+            _candidateLabel: {style_class: ''},
         }),
-        _buttonBox: { style_class: '' },
-        _previousButton: { style_class: '' },
-        _nextButton: { style_class: '' },
+        _buttonBox: {style_class: ''},
+        _previousButton: {style_class: ''},
+        _nextButton: {style_class: ''},
     },
-    bin: { child: { style_class: '' } },
-    _preeditText: { style_class: '' },
-    _auxText: { style_class: '' },
+    bin: {child: {style_class: ''}},
+    _preeditText: {style_class: ''},
+    _auxText: {style_class: ''},
 };
 
 const ellipsize = (s, l = 20) => s.length > 2 * l ? `${s.slice(0, l)}\u2026${s.slice(-l)}` : s;
 const visibilize = (s, t = [[/\n|\r/g, '\u21b5'], ['\t', '\u21e5']]) => t.reduce((p, x) => p.replaceAll(...x), s);
 
-function syncStyleClass(aim, src, func = idf, obj = PopupStyleClass) {
+function syncStyleClass(aim, src, func = echo, obj = PopupStyleClass) {
     Object.keys(obj).forEach(k => obj[k] instanceof Object
         ? aim[k] && syncStyleClass(aim[k], src[k], func, obj[k]) : k === 'style_class' && (aim[k] = func(src[k])));
 }
@@ -75,7 +73,7 @@ class IBusAutoSwitch extends Destroyable {
         this._fulu = fulu;
         connect(this, [global.display, 'notify::focus-window', () => this.toggleInputMode()],
             [Main.overview, 'hidden', () => this.setEmpty(), 'shown', () => this.setEmpty('#overview')]);
-        this._sbt = symbiose(this, () => this._fulu.set('modes', new GLib.Variant('a{s(ss)}', Object.fromEntries(this._modes)), this), {
+        this._sbt = symbiose(this, null, {
             keys: [x => x && Main.wm.removeKeybinding(Field.RKYS),
                 x => x && Main.wm.addKeybinding(Field.RKYS, this._fulu.gset, Meta.KeyBindingFlags.NONE, Shell.ActionMode.ALL, () => this.openRunDialog())],
         });
@@ -92,40 +90,33 @@ class IBusAutoSwitch extends Destroyable {
         this._modes ??= new Map(Object.entries(modes.recursiveUnpack()));
     }
 
-    getInputMode(ps) {
-        if(!ps) return '';
-        for(let p, i = 0; (p = ps.get(i)); i++) {
+    getInputMode(props) {
+        if(!props) return '';
+        for(let p, i = 0; (p = props.get(i)); i++) {
             if(!p.key.startsWith('InputMode')) continue;
             switch(p.prop_type) {
-            case IBus.PropType.NORMAL: // ibus-libpinyin
-                return p.symbol?.get_text() ?? p.label.get_text();
-            case IBus.PropType.TOGGLE: // ibus-hangul
-                return p.state.toString();
-            case IBus.PropType.MENU: // ibus-typing-booster
-                return this.getInputMode(p.sub_props);
-            case IBus.PropType.RADIO: // ibus-typing-booster
-                if(p.state) return p.key.split('.').at(-1); break;
+            case IBus.PropType.NORMAL: return p.symbol?.get_text() ?? p.label.get_text(); // ibus-libpinyin
+            case IBus.PropType.TOGGLE: return p.state.toString(); // ibus-hangul
+            case IBus.PropType.MENU: return this.getInputMode(p.sub_props); // ibus-typing-booster
+            case IBus.PropType.RADIO: if(p.state) return p.key.split('.').at(-1); break; // ibus-typing-booster
             }
         }
     }
 
-    setInputMode(ps, m) {
-        if(!ps) return;
-        for(let p, i = 0; (p = ps.get(i)); i++) {
+    setInputMode(props, mode) {
+        if(!props) return;
+        for(let p, i = 0; (p = props.get(i)); i++) {
             if(!p.key.startsWith('InputMode')) continue;
             switch(p.prop_type) {
             case IBus.PropType.NORMAL:
-            case IBus.PropType.TOGGLE:
-                return this.activateProp(p.key, !p.state);
-            case IBus.PropType.MENU:
-                return this.setInputMode(p.sub_props, m);
-            case IBus.PropType.RADIO:
-                if(p.key.endsWith(m)) return this.activateProp(p.key, !p.state); break;
+            case IBus.PropType.TOGGLE: return this.activate(p.key, !p.state);
+            case IBus.PropType.MENU: return this.setInputMode(p.sub_props, mode);
+            case IBus.PropType.RADIO: if(p.key.endsWith(mode)) return this.activate(p.key, !p.state); break;
             }
         }
     }
 
-    activateProp(key, state) {
+    activate(key, state) {
         IBusManager.activateProperty(key, state ? 1 : 0);
     }
 
@@ -147,7 +138,7 @@ class IBusAutoSwitch extends Destroyable {
     }
 
     toggleInputMode() {
-        let { id, properties } = InputManager.currentSource;
+        let {id, properties} = InputManager.currentSource;
         let mode = this.getInputMode(properties);
         if(this.checkInputMode(this._win, id, mode)) this.saveInputMode(this._win, id, mode);
         let win = this._empty || global.display.focus_window?.wm_class?.toLowerCase();
@@ -175,7 +166,7 @@ class IBusFontSetting extends Destroyable {
         super();
         this._original_style = IBusPopup.get_style();
         symbiose(this, () => IBusPopup.set_style(this._original_style));
-        this._fulu = fulu.attach({ fontname: [Field.FNTS, 'string'] }, this);
+        this._fulu = fulu.attach({fontname: [Field.FNTS, 'string']}, this);
     }
 
     set fontname(fontname) {
@@ -191,10 +182,10 @@ class IBusFontSetting extends Destroyable {
 class IBusOrientation extends Destroyable {
     constructor(fulu) {
         super();
-        symbiose(this, () => { IBusPopupArea.setOrientation = this._originalSetOrientation; });
-        this._originalSetOrientation = IBusPopupArea.setOrientation.bind(IBusPopupArea);
-        this._fulu = fulu.attach({ orientation: [Field.ORNS, 'uint'] }, this);
-        IBusPopupArea.setOrientation = noop;
+        symbiose(this, () => { IBusArea.setOrientation = this._originalSetOrientation; });
+        this._originalSetOrientation = IBusArea.setOrientation.bind(IBusArea);
+        this._fulu = fulu.attach({orientation: [Field.ORNS, 'uint']}, this);
+        IBusArea.setOrientation = noop;
     }
 
     set orientation(orientation) {
@@ -205,13 +196,13 @@ class IBusOrientation extends Destroyable {
 class IBusPageButton extends Destroyable {
     constructor() {
         super();
-        IBusPopupArea._buttonBox.set_style('border-width: 0;');
-        IBusPopupArea._previousButton.hide();
-        IBusPopupArea._nextButton.hide();
+        IBusArea._buttonBox.set_style('border-width: 0;');
+        IBusArea._previousButton.hide();
+        IBusArea._nextButton.hide();
         symbiose(this, () => {
-            IBusPopupArea._buttonBox.set_style('');
-            IBusPopupArea._previousButton.show();
-            IBusPopupArea._nextButton.show();
+            IBusArea._buttonBox.set_style('');
+            IBusArea._previousButton.show();
+            IBusArea._nextButton.show();
         });
     }
 }
@@ -225,50 +216,36 @@ class IBusThemeManager extends Destroyable {
     }
 
     _bindSettings(fulu) {
-        this._fulu_t = new Fulu({
+        this._fulu_if = new Fulu({
             scheme: ['color-scheme', 'string', x => x === 'prefer-dark'],
         }, 'org.gnome.desktop.interface', this, 'murkey');
         this._fulu = fulu.attach({
-            color: [Field.THMS, 'uint', x => this._palette[x]],
             style: [Field.TSTL, 'uint'],
+            paint: [Field.THMS, 'uint', x => this._palette[x]],
         }, this, 'murkey');
-        this._light = lightProxy(() => { this.murkey = ['night_light', this._light.NightLightActive]; }, this);
+        bindNight(x => ['_night', x], this, 'murkey');
     }
 
-    set murkey([k, v, out]) {
-        if(k) this[k] = out ? out(v) : v;
-        this.dark = this.style === Style.AUTO ? this.night_light
+    set murkey([k, v, cb]) {
+        this[k] = cb?.(v) ?? v;
+        if(!has(this, '_night')) return;
+        let dark = this.style === Style.AUTO ? this._night
             : this.style === Style.SYSTEM ? this.scheme : this.style === Style.DARK;
-        this._updateStyle();
+        this._updateStyle(dark);
+        this._updateColor(dark);
     }
 
-    toggleDark() {
-        if((this._dark = this.dark)) {
-            IBusPopup.remove_style_class_name(this.color);
-            IBusPopup.add_style_class_name('night');
-            IBusPopup.add_style_class_name(`night-${this.color}`);
-        } else {
-            IBusPopup.remove_style_class_name('night');
-            IBusPopup.remove_style_class_name(`night-${this.color}`);
-            IBusPopup.add_style_class_name(this.color);
-        }
+    _updateStyle(dark) {
+        if(this.dark === dark) return;
+        if((this.dark = dark)) IBusPopup.add_style_class_name('night');
+        else IBusPopup.remove_style_class_name('night');
     }
 
-    changeColor() {
-        if(this._dark) {
-            if(this._color) IBusPopup.remove_style_class_name(`night-${this._color}`);
-            IBusPopup.add_style_class_name(`night-${this.color}`);
-        } else {
-            if(this._color) IBusPopup.remove_style_class_name(this._color);
-            IBusPopup.add_style_class_name(this.color);
-        }
-        this._color = this.color;
-    }
-
-    _updateStyle() {
-        if(!('night_light' in this)) return;
-        if(this._dark !== this.dark) this.toggleDark();
-        if(this._color !== this.color) this.changeColor();
+    _updateColor(dark) {
+        let color = dark ? `night-${this.paint}` : this.paint;
+        if(this.color === color) return;
+        if(this.color) IBusPopup.remove_style_class_name(this.color);
+        IBusPopup.add_style_class_name(this.color = color);
     }
 
     _replaceStyle() {
@@ -277,66 +254,9 @@ class IBusThemeManager extends Destroyable {
     }
 
     _restoreStyle() {
-        if(this.style) {
-            IBusPopup.remove_style_class_name('night');
-            IBusPopup.remove_style_class_name(`night-${this.color}`);
-        } else {
-            IBusPopup.remove_style_class_name(this.color);
-        }
+        if(this.dark) IBusPopup.remove_style_class_name('night');
+        if(this.color) IBusPopup.remove_style_class_name(this.color);
         syncStyleClass(IBusPopup, PopupStyleClass);
-    }
-}
-
-class UpdatesIndicator extends Destroyable {
-    constructor(fulu) {
-        super();
-        this._bindSettings(fulu);
-        this._addIndicator();
-        this._buildWidgets();
-        this._checkUpdates();
-        this._sbt.cycle.revive();
-    }
-
-    _buildWidgets() {
-        this._sbt = symbiose(this, () => omit(this, '_btn'), {
-            check: [clearTimeout, () => setTimeout(() => this._checkUpdates(), 10 * 1000)],
-            cycle: [clearInterval, () => setInterval(() => this._checkUpdates(), 3 * 60 * 60 * 1000)], // 3h
-            watch: [x => x && x.cancel(), x => x && fopen(this.updatesdir).monitor(Gio.FileMonitorFlags.WATCH_MOVES, null)],
-        });
-    }
-
-    _bindSettings(fulu) {
-        this._fulu = fulu.attach({
-            updatesdir: [Field.UPDR, 'string'],
-            updatescmd: [Field.UCMD, 'string'],
-        }, this);
-    }
-
-    _checkUpdates() {
-        execute(this.updatescmd)
-            .then(scc => this._showUpdates(scc ? scc.split(/\r\n|\r|\n/).length : 0))
-            .catch(() => this._showUpdates(0));
-    }
-
-    _showUpdates(count) {
-        this._sbt.watch.revive(count)?.connect?.('changed', (...xs) => xs[3] === Gio.FileMonitorEvent.CHANGES_DONE_HINT && this._sbt.check.revive());
-        if(count > 0) {
-            this._btn.label.set_text(count.toString());
-            this._btn.show();
-        } else {
-            this._btn.hide();
-        }
-    }
-
-    _addIndicator() {
-        this._btn = Main.panel.addToStatusArea(getSelf().uuid, new PanelMenu.Button(0, '', true), 5, 'center');
-        let box = new St.BoxLayout({ style_class: 'panel-status-menu-box' });
-        let icon = new St.Icon({ style_class: 'system-status-icon', icon_name: 'software-update-available-symbolic' });
-        this._btn.label = new St.Label({ y_align: Clutter.ActorAlign.CENTER });
-        [icon, this._btn.label].forEach(x => box.add_child(x));
-        this._btn.menu.toggle = () => this._btn.hide();
-        this._btn.add_child(box);
-        this._btn.hide();
     }
 }
 
@@ -349,37 +269,34 @@ class IBusClipArea extends St.BoxLayout {
                 'next-page': {},
                 'cursor-down': {},
                 'previous-page': {},
-                'candidate-clicked': { param_types: [GObject.TYPE_UINT, GObject.TYPE_UINT, Clutter.ModifierType.$gtype] },
+                'candidate-clicked': {param_types: [GObject.TYPE_UINT, GObject.TYPE_UINT, Clutter.ModifierType.$gtype]},
             },
         }, this);
     }
 
     constructor() {
-        super({ vertical: true, reactive: true, visible: false });
+        super({vertical: true, reactive: true, visible: false});
+        this.add_style_class_name('vertical');
         this._candidateBoxes = [];
+        let onClick = i => (_a, event) => {
+            this.emit('candidate-clicked', i, event.get_button(), event.get_state());
+            return Clutter.EVENT_PROPAGATE;
+        };
         Indices.forEach((_x, i) => {
-            let box = new St.BoxLayout({ style_class: 'candidate-box', reactive: true, track_hover: true });
-            box.connect('button-release-event', (_a, event) => {
-                this.emit('candidate-clicked', i, event.get_button(), event.get_state());
-                return Clutter.EVENT_PROPAGATE;
-            });
-            [box._indexLabel, box._candidateLabel] = ['index', 'label'].map(x => {
-                let label = new St.Label({ style_class: `candidate-${x}` });
-                box.add_child(label);
-                return label;
-            });
+            let box = hook({'button-release-event': onClick(i)}, new St.BoxLayout({reactive: true, track_hover: true}));
+            box._indexLabel = new St.Label();
+            box.add_child(box._indexLabel);
+            box._candidateLabel = new St.Label();
+            box.add_child(box._candidateLabel);
             this._candidateBoxes.push(box);
-            this.add(box);
+            this.add_child(box);
         });
-        this._buttonBox = new St.BoxLayout({ style_class: 'candidate-page-button-box' });
-        [this._nextButton, this._previousButton] = ['next', 'previous'].map(x => {
-            let sgn = `${x}-page`;
-            let btn = new St.Button({ style_class: `candidate-page-button candidate-page-button-${x}-button`, x_expand: true });
-            btn.connect('clicked', () => this.emit(sgn));
-            this._buttonBox.add(btn);
-            return btn;
-        });
-        this.add(this._buttonBox);
+        this._buttonBox = new St.BoxLayout();
+        this._previousButton = hook({clicked: () => this.emit('previous-page')}, new St.Button({x_expand: true, icon_name: 'go-up-symbolic'}));
+        this._buttonBox.add_child(this._previousButton);
+        this._nextButton = hook({clicked: () => this.emit('next-page')}, new St.Button({x_expand: true, icon_name: 'go-down-symbolic'}));
+        this._buttonBox.add_child(this._nextButton);
+        this.add_child(this._buttonBox);
         this._orientation = -1;
         this._cursorPosition = 0;
     }
@@ -390,24 +307,6 @@ class IBusClipArea extends St.BoxLayout {
         case Clutter.ScrollDirection.DOWN: this.emit('cursor-down'); break;
         }
         return Clutter.EVENT_PROPAGATE;
-    }
-
-    setOrientation(orientation) {
-        if(this._orientation === orientation) return;
-        this._orientation = orientation;
-        if(this._orientation === IBus.Orientation.HORIZONTAL) {
-            this.vertical = false;
-            this.remove_style_class_name('vertical');
-            this.add_style_class_name('horizontal');
-            this._previousButton.icon_name = 'go-previous-symbolic';
-            this._nextButton.icon_name = 'go-next-symbolic';
-        } else {                // VERTICAL || SYSTEM
-            this.vertical = true;
-            this.add_style_class_name('vertical');
-            this.remove_style_class_name('horizontal');
-            this._previousButton.icon_name = 'go-up-symbolic';
-            this._nextButton.icon_name = 'go-down-symbolic';
-        }
     }
 
     setCandidates(indexes, candidates, cursorPosition, cursorVisible) {
@@ -441,28 +340,26 @@ class IBusClipPopup extends BoxPointer.BoxPointer {
         GObject.registerClass(this);
     }
 
-    constructor(page_btn) {
+    constructor(page_btn, hooks) {
         super(St.Side.TOP);
         this.visible = false;
         this.reactive = true;
-        this.style_class = 'candidate-popup-boxpointer';
-        this._buildWidgets(page_btn);
+        this._buildWidgets(page_btn, hooks);
         Main.layoutManager.addChrome(this);
         global.focus_manager.add_group(this);
         global.stage.set_key_focus(this);
     }
 
-    _buildWidgets(page_btn) {
-        let box = new St.BoxLayout({ style_class: 'candidate-popup-content', vertical: true });
-        let hbox = new St.BoxLayout();
-        this._preeditText = new St.Label({ style_class: 'candidate-popup-text', visible: true, x_expand: true });
-        this._auxText = new St.Label({ style_class: 'candidate-popup-text', visible: true });
-        [this._preeditText, this._auxText].forEach(x => hbox.add(x));
-        box.add(hbox);
-        this._candidateArea = new IBusClipArea();
-        this._candidateArea.setOrientation(IBus.Orientation.VERTICAL);
-        box.add(this._candidateArea);
+    _buildWidgets(page_btn, hooks) {
+        let box = new St.BoxLayout({vertical: true});
         this.bin.set_child(box);
+        let hbox = new St.BoxLayout();
+        box.add_child(hbox);
+        this._preeditText = new St.Label({visible: true, x_expand: true});
+        this._auxText = new St.Label({visible: true});
+        [this._preeditText, this._auxText].forEach(x => hbox.add_child(x));
+        this._candidateArea = hook(hooks, new IBusClipArea());
+        box.add_child(this._candidateArea);
         this._replaceStyle(page_btn);
     }
 
@@ -486,8 +383,8 @@ class IBusClipPopup extends BoxPointer.BoxPointer {
         this._preeditText.set_text(`${_('📋：')}${text}`);
     }
 
-    set aux(numb) {
-        this._auxText.set_text(_('%dC').format(numb ?? 0));
+    set aux(num) {
+        this._auxText.set_text(_('%dC').format(num ?? 0));
     }
 
     get _area() {
@@ -499,7 +396,7 @@ class IBusClipPopup extends BoxPointer.BoxPointer {
         this.setPosition(cursor, 0);
         this.open(BoxPointer.PopupAnimation.NONE);
         this.get_parent().set_child_above_sibling(this, null);
-        Main.pushModal(this, { actionMode: Shell.ActionMode.POPUP });
+        Main.pushModal(this, {actionMode: Shell.ActionMode.POPUP});
     }
 }
 
@@ -513,14 +410,14 @@ class IBusClipHistory extends Destroyable {
 
     _buildWidgets(fulu) {
         this._fulu = fulu;
-        this._ptr = new Clutter.Actor({ opacity: 0, x: 1, y: 1 }); // workaround for the cursor jumping
+        this._ptr = new Clutter.Actor({opacity: 0, x: 1, y: 1}); // workaround for the cursor jumping
         Main.layoutManager.uiGroup.add_child(this._ptr);
         this._sbt = symbiose(this, () => omit(this, '_ptr', '_pop'), {
             keys: [x => x && Main.wm.removeKeybinding(Field.CKYS),
                 x => x && Main.wm.addKeybinding(Field.CKYS, this._fulu.gset, Meta.KeyBindingFlags.NONE, Shell.ActionMode.ALL, () => this.summon())],
             commit: [clearTimeout, x => x && setTimeout(() => IBusManager._panelService?.commit_text(IBus.Text.new_from_string(x)), 30)],
         });
-        connect(this, [global.display.get_selection(), 'owner-changed', this.onClipboardChanged.bind(this)]);
+        connect(this, [global.display.get_selection(), 'owner-changed', this.onClipboardChange.bind(this)]);
     }
 
     _bindSettings() {
@@ -532,23 +429,23 @@ class IBusClipHistory extends Destroyable {
 
     summon() {
         if(this._pop || !IBusManager._ready || Main.overview._shown) return;
-        this._pop = new IBusClipPopup(this.page_btn);
-        connect(this, [this._pop, 'captured-event', this.onCapturedEvent.bind(this)],
-            [this._pop._area, 'cursor-up', () => { this.offset = -1; },
-                'cursor-down', () => { this.offset = 1; },
-                'next-page', () => { this.offset = this.page_size; },
-                'candidate-clicked', this.candidateClicked.bind(this),
-                'previous-page', () => { this.offset = -this.page_size; }]);
+        this._pop = hook({'captured-event': this.onCapturedEvent.bind(this)}, new IBusClipPopup(this.page_btn, {
+            'cursor-up': () => { this.offset = -1; },
+            'cursor-down': () => { this.offset = 1; },
+            'next-page': () => { this.offset = this.page_size; },
+            'candidate-clicked': this.onCandidateClick.bind(this),
+            'previous-page': () => { this.offset = -this.page_size; },
+        }));
         this._lookup = [...ClipHist];
         this._preedit = '';
         this.cursor = 0;
-        let { x, y, width, height } = IBusPopup._dummyCursor;
+        let {x, y, width, height} = IBusPopup._dummyCursor;
         this._ptr.set_position(x, y);
         this._ptr.set_size(width, height);
         this._pop.summon(this._ptr);
     }
 
-    onClipboardChanged(_sel, type) {
+    onClipboardChange(_sel, type) {
         if(type !== St.ClipboardType.CLIPBOARD) return;
         St.Clipboard.get_default().get_text(St.ClipboardType.CLIPBOARD, (_clip, text) => {
             if(!text) return;
@@ -574,13 +471,15 @@ class IBusClipHistory extends Destroyable {
             case Clutter.KEY_Right:
             case Clutter.KEY_Page_Down: this.offset = this.page_size; break;
             case Clutter.KEY_space:
-            case Clutter.KEY_Return:    this.candidateClicked(null, this._cursor - this._start, 1, 0); break;
+            case Clutter.KEY_Return:
+            case Clutter.KEY_KP_Enter:
+            case Clutter.KEY_ISO_Enter: this.onCandidateClick(null, this._cursor - this._start, 1, 0); break;
             case Clutter.KEY_Delete:    this.deleteCurrent(); break;
             case Clutter.KEY_backslash: this.mergeCurrent(); break;
             case Clutter.KEY_BackSpace: this.preedit = this._preedit.slice(0, -1); break;
             default:
                 if(key < 33 || key > 126) this.dispel();
-                else if(key > 47 && key < 58) this.selectAt(key);
+                else if(key > 47 && key < 58) this.selectAt(String.fromCharCode(key));
                 else this.preedit = this._preedit + String.fromCharCode(key); break;
             }
             return Clutter.EVENT_STOP;
@@ -619,7 +518,7 @@ class IBusClipHistory extends Destroyable {
         this._pop.preedit = this._preedit;
     }
 
-    candidateClicked(_area, index) {
+    onCandidateClick(_area, index) {
         this.dispel();
         this.commitAt(index);
     }
@@ -647,9 +546,10 @@ class IBusClipHistory extends Destroyable {
         this.cursor = this._cursor;
     }
 
-    selectAt(code) {
-        let index = Indices.findIndex(x => x === String.fromCharCode(code));
-        index >= 0 && index < this._size ? this.candidateClicked(null, index, 1, 0) : this.dispel();
+    selectAt(key) {
+        let index = Indices.findIndex(x => x === key);
+        if(index < 0 || index >= this._size) this.dispel();
+        else this.onCandidateClick(null, index, 1, 0);
     }
 
     set preedit(preedit) {
@@ -673,9 +573,9 @@ class IBusTweaker extends Destroyable {
 
     _buildWidgets(gset) {
         this._tweaks = {};
+        this._fulu = new Fulu({}, gset, this);
         IBusPopup._dummyCursor.set_position(1, 1); // HACK: workaround for popup jumping
         syncStyleClass(PopupStyleClass, IBusPopup);
-        this._fulu = new Fulu({}, gset, this, 'props');
         symbiose(this, () => omit(this._tweaks, ...Object.keys(this._tweaks)));
     }
 
@@ -687,12 +587,11 @@ class IBusTweaker extends Destroyable {
             orient: [Field.ORN,  'boolean', IBusOrientation],
             pgbtn:  [Field.PBTN, 'boolean', IBusPageButton],
             theme:  [Field.THM,  'boolean', IBusThemeManager],
-            update: [Field.UPD,  'boolean', UpdatesIndicator],
-        }, this, 'props');
+        }, this, 'tweaks');
     }
 
-    set props([k, v, out]) {
-        if(v) this._tweaks[k] ??= new out(this._fulu);
+    set tweaks([k, v, klass]) {
+        if(v) this._tweaks[k] ??= new klass(this._fulu);
         else omit(this._tweaks, k);
     }
 }

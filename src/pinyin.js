@@ -1,5 +1,5 @@
-// vim:fdm=syntax
-// by tuberry
+// SPDX-FileCopyrightText: tuberry
+// SPDX-License-Identifier: GPL-3.0-or-later
 
 // pinyin initials of U+4E00-U+9FA5 (20902), gen with python-pinyin (https://github.com/mozillazg/python-pinyin)
 const Yi = '\u4e00'.codePointAt(0); // one

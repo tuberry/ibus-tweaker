@@ -1,13 +1,10 @@
-// vim:fdm=syntax
-// by tuberry
+// SPDX-FileCopyrightText: tuberry
+// SPDX-License-Identifier: GPL-3.0-or-later
 
 export const Field = {
     FNTS: 'custom-font',
     IPMS: 'input-modes',
-    UPDR: 'updates-dir',
-    UCMD: 'check-updates',
     DLG:  'enable-dialog',
-    UPD:  'enable-updates',
     THMS: 'ms-theme-color',
     THM:  'enable-ms-theme',
     TSTL: 'default-variant',

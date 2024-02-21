@@ -54,7 +54,7 @@
         <summary>input mode list</summary>
     </key>
     <key type="s" name="custom-font">
-        <default>"Sans 16"</default>
+        <default>"Sans 14"</default>
         <summary>custom font</summary>
     </key>
     <key type="as" name="ibus-tweaker-clip-history">
@@ -64,18 +64,6 @@
     <key type="as" name="ibus-tweaker-run-dialog">
         <default><![CDATA[['<Super>r']]]></default>
         <summary>run-dialog</summary>
-    </key>
-    <key type="b" name="enable-updates">
-        <default>false</default>
-        <summary>enable updates indicator</summary>
-    </key>
-    <key type="s" name="check-updates">
-        <default>"checkupdates"</default>
-        <summary>command to check updates(for the Arch-based)</summary>
-    </key>
-    <key type="s" name="updates-dir">
-        <default>"/var/lib/pacman/local"</default>
-        <summary>updates dir</summary>
     </key>
   </schema>
 </schemalist>

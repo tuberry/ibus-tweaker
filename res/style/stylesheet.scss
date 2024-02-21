@@ -21,25 +21,25 @@ $colors: ();
 }
 // @debug $colors;
 
-@mixin fg($t: 0) {
+@mixin fgcolor($t: 0) {
     color: transparentize($dark_5, $t);
     .night & { color: transparentize($light_1, $t); }
 }
 
-@mixin fb {
-    @include fg;
+@mixin color {
+    @include fgcolor;
     background-color: lighten($bg_color, 5%);
     .night & { background-color: lighten($_dark_base_color, 5%); }
 }
 
-@mixin bg {
+@mixin bgcolor {
     @each $k, $v in $colors {
         .#{$k} &:hover { background-color: transparentize($v, 0.6); }
         .#{$k} &:selected { background-color: transparentize($v, 0.05); }
     }
 }
 
-@mixin bd {
+@mixin border {
     @each $k, $v in $colors {
         .#{$k} & { border-color: transparentize($v, 0.05); }
     }
@@ -55,20 +55,20 @@ $colors: ();
 }
 
 .#{$pfx}-index {
-    @include fg(0.4);
+    @include fgcolor(0.4);
     padding: 0.25em 0.25em 0 0;
 }
 
 .#{$pfx}-page-button-box {
-    @include bd;
+    @include border;
     .vertical & { padding-top: 0; border-top-width: 1px; }
     .horizontal & { padding-left: 0; border-left-width: 1px; }
 }
 
 .#{$pfx}-popup-content {
-    @include fb;
-    @include bd;
-    @include bg;
+    @include color;
+    @include border;
+    @include bgcolor;
     padding: 0;
     margin: 0.3em;
     border-width: 1px;
@@ -76,24 +76,24 @@ $colors: ();
 }
 
 .#{$pfx}-popup-text {
-    @include bd;
+    @include border;
     padding: 0;
     border-width: 0;
     border-bottom-width: 1px;
 }
 
 .#{$pfx}-box {
-    @include bg;
+    @include bgcolor;
     padding: 0.5em;
     border-radius: 0;
     transition-duration: 100ms;
 }
 
 .#{$pfx}-page-button {
-    @include fb;
-    @include bg;
+    @include color;
+    @include bgcolor;
     padding: 0;
     border-radius: 0.2em;
     & StIcon { icon-size: 1.45em; }
-    &:insensitive { @include fg(0.6); }
+    &:insensitive { @include fgcolor(0.6); }
 }
