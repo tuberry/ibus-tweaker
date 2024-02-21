@@ -1,4 +1,7 @@
-# by tuberry
+#!/usr/bin/env python
+# SPDX-FileCopyrightText: tuberry
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 from pypinyin import pinyin, Style
 
 s = '\''

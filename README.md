@@ -2,7 +2,7 @@
 
 Tweaker of IBus in GNOME Shell for orientation, theme, font, input mode and clipboard history.
 > 狙公赋芧曰朝三而暮四。众狙皆怒。曰然则朝四而暮三。众狙皆悦。 —— *《庄子·齐物论》*<br>
-[![license]](/LICENSE)
+[![license]](/LICENSE.md)
 </br>
 
 ![dj](https://user-images.githubusercontent.com/17917040/92872878-0e647800-f439-11ea-9c14-781b4d3191ed.gif)
@@ -49,4 +49,4 @@ https://user-images.githubusercontent.com/17917040/139533759-a5ebe54c-2fca-4006-
 * [python-pinyin](https://github.com/mozillazg/python-pinyin): gen pinyin [initials](/gen-initials.py)
 
 [EGO]:https://extensions.gnome.org/extension/2820/ibus-tweaker/
-[license]:https://img.shields.io/badge/license-GPLv3-green.svg
+[license]:https://img.shields.io/badge/license-GPLv3+-green.svg
