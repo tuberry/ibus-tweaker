@@ -3,7 +3,6 @@
 
 import St from 'gi://St';
 import GLib from 'gi://GLib';
-import Meta from 'gi://Meta';
 import IBus from 'gi://IBus';
 import Shell from 'gi://Shell';
 import Pango from 'gi://Pango';
@@ -14,9 +13,9 @@ import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import * as BoxPointer from 'resource:///org/gnome/shell/ui/boxpointer.js';
 
 import {Field} from './const.js';
-import {s2py} from './pinyin.js';
-import {noop, hook, id as echo, has} from './util.js';
-import {Fulu, ExtensionBase, Destroyable, symbiose, omit, connect, bindNight, _} from './fubar.js';
+import {str2py} from './pinyin.js';
+import {noop, hook, id as echo, has, vmap} from './util.js';
+import {Setting, Extension, Mortal, Source, Keys, Light, degrade, connect, _} from './fubar.js';
 
 const InputManager = Main.panel.statusArea.keyboard._inputSourceManager;
 const IBusManager = InputManager._ibusManager;
@@ -62,56 +61,53 @@ function fuzzySearch(needle, haystack) {
     return true;
 }
 
-class IBusAutoSwitch extends Destroyable {
-    constructor(fulu) {
+class IBusAutoSwitch extends Mortal {
+    constructor(set) {
         super();
-        this._buildWidgets(fulu);
-        this._bindSettings();
+        this.$buildWidgets(set);
+        this.$bindSettings();
     }
 
-    _buildWidgets(fulu) {
-        this._fulu = fulu;
-        connect(this, [global.display, 'notify::focus-window', () => this.toggleInputMode()],
-            [Main.overview, 'hidden', () => this.setEmpty(), 'shown', () => this.setEmpty('#overview')]);
-        this._sbt = symbiose(this, null, {
-            keys: [x => x && Main.wm.removeKeybinding(Field.RKYS),
-                x => x && Main.wm.addKeybinding(Field.RKYS, this._fulu.gset, Meta.KeyBindingFlags.NONE, Shell.ActionMode.ALL, () => this.openRunDialog())],
-        });
-    }
-
-    _bindSettings() {
-        this._fulu.attach({
-            modes:    [Field.IPMS, 'value'],
-            shortcut: [Field.DLG, 'boolean'],
+    $buildWidgets(set) {
+        this.$set = set;
+        connect(this, global.display, 'notify::focus-window', () => this.toggleInputMode(),
+            Main.overview, 'hidden', () => this.setEmpty(), 'shown', () => this.setEmpty('#overview'));
+        this.$src = degrade({
+            keys: new Keys(this.$set.gset, Field.RKYS, () => this.openRunDialog()),
         }, this);
     }
 
-    set modes(modes) {
-        this._modes ??= new Map(Object.entries(modes.recursiveUnpack()));
+    $bindSettings() {
+        this.$set.attach({
+            modes: [Field.IPMS, 'value',   x => { this.$modes ??= new Map(Object.entries(x.recursiveUnpack())); }],
+            keys:  [Field.DLG,  'boolean', x => this.$src.keys.toggle(x)],
+        }, this);
+    }
+
+    *enumerateProps(props) {
+        if(!props) return;
+        for(let p, i = 0; (p = props.get(i)); i++) if(p.key.startsWith('InputMode')) yield p;
     }
 
     getInputMode(props) {
-        if(!props) return '';
-        for(let p, i = 0; (p = props.get(i)); i++) {
-            if(!p.key.startsWith('InputMode')) continue;
-            switch(p.prop_type) {
-            case IBus.PropType.NORMAL: return p.symbol?.get_text() ?? p.label.get_text(); // ibus-libpinyin
-            case IBus.PropType.TOGGLE: return p.state.toString(); // ibus-hangul
-            case IBus.PropType.MENU: return this.getInputMode(p.sub_props); // ibus-typing-booster
-            case IBus.PropType.RADIO: if(p.state) return p.key.split('.').at(-1); break; // ibus-typing-booster
+        for(let {prop_type, symbol, label, state, sub_props, key} of this.enumerateProps(props)) {
+            switch(prop_type) {
+            case IBus.PropType.NORMAL: return symbol?.get_text() ?? label.get_text(); // ibus-libpinyin
+            case IBus.PropType.TOGGLE: return state.toString(); // ibus-hangul
+            case IBus.PropType.MENU: return this.getInputMode(sub_props); // ibus-typing-booster
+            case IBus.PropType.RADIO: if(state) return key.split('.').at(-1); break; // ibus-typing-booster
             }
         }
+        return '';
     }
 
     setInputMode(props, mode) {
-        if(!props) return;
-        for(let p, i = 0; (p = props.get(i)); i++) {
-            if(!p.key.startsWith('InputMode')) continue;
-            switch(p.prop_type) {
+        for(let {prop_type, key, state, sub_props} of this.enumerateProps(props)) {
+            switch(prop_type) {
             case IBus.PropType.NORMAL:
-            case IBus.PropType.TOGGLE: return this.activate(p.key, !p.state);
-            case IBus.PropType.MENU: return this.setInputMode(p.sub_props, mode);
-            case IBus.PropType.RADIO: if(p.key.endsWith(mode)) return this.activate(p.key, !p.state); break;
+            case IBus.PropType.TOGGLE: return this.activate(key, !state);
+            case IBus.PropType.MENU: return this.setInputMode(sub_props, mode);
+            case IBus.PropType.RADIO: if(key.endsWith(mode)) return this.activate(key, !state); break;
             }
         }
     }
@@ -121,139 +117,138 @@ class IBusAutoSwitch extends Destroyable {
     }
 
     setEmpty(empty) {
-        this._empty = empty;
+        this.$empty = empty;
         this.toggleInputMode();
     }
 
     saveInputMode(win, id, mode) {
-        this._modes.set(win, [id, mode]);
-        this._fulu.set('modes', new GLib.Variant('a{s(ss)}', Object.fromEntries(this._modes)), this);
+        this.$modes.set(win, [id, mode]);
+        this.$set.set('modes',  new GLib.Variant('a{s(ss)}', Object.fromEntries(this.$modes)), this);
     }
 
     checkInputMode(win, id, mode) {
         if(!win) return false;
-        if(!this._modes.has(win)) this.saveInputMode(win, id, mode);
-        [this._id, this._mode] = this._modes.get(win);
-        return this._id !== id || this._mode !== mode;
+        if(!this.$modes.has(win)) this.saveInputMode(win, id, mode);
+        [this.id, this.mode] = this.$modes.get(win);
+        return this.id !== id || this.mode !== mode;
     }
 
     toggleInputMode() {
         let {id, properties} = InputManager.currentSource;
         let mode = this.getInputMode(properties);
-        if(this.checkInputMode(this._win, id, mode)) this.saveInputMode(this._win, id, mode);
-        let win = this._empty || global.display.focus_window?.wm_class?.toLowerCase();
-        if(this.checkInputMode(this._win = win, id, mode) && this._id === id) this.setInputMode(properties, this._mode);
-    }
-
-    set shortcut(shortcut) {
-        this._sbt.keys.revive(shortcut);
+        if(this.checkInputMode(this.win, id, mode)) this.saveInputMode(this.win, id, mode);
+        let win = this.$empty || global.display.focus_window?.wm_class?.toLowerCase();
+        if(this.checkInputMode(this.win = win, id, mode) && this.id === id) this.setInputMode(properties, this.mode);
     }
 
     openRunDialog() {
-        if(Main.runDialog && this._dialogInited) {
+        if(Main.runDialog && this.dialogInited) {
             Main.openRunDialog();
         } else {
             Main.openRunDialog();
-            connect(this, [Main.runDialog, 'notify::visible', () => this.setEmpty(Main.runDialog.visible && '#run-dialog')]);
+            connect(this, Main.runDialog, 'notify::visible', () => this.setEmpty(Main.runDialog.visible && '#run-dialog'));
             this.setEmpty('#run-dialog');
-            this._dialogInited = true;
+            this.dialogInited = true;
         }
     }
 }
 
-class IBusFontSetting extends Destroyable {
-    constructor(fulu) {
+class IBusFontSetting extends Mortal {
+    constructor(set) {
         super();
-        this._original_style = IBusPopup.get_style();
-        symbiose(this, () => IBusPopup.set_style(this._original_style));
-        this._fulu = fulu.attach({fontname: [Field.FNTS, 'string']}, this);
-    }
-
-    set fontname(fontname) {
-        let desc = Pango.FontDescription.from_string(fontname);
-        let getWeight = () => { try { return desc.get_weight(); } catch(e) { return parseInt(e.message); } }; // HACK: workaround for Pango.Weight enumeration exception (eg: 290)
-        IBusPopup.set_style(`font-weight: ${getWeight()};
+        let style = IBusPopup.get_style();
+        this.$src = degrade({
+            font: new Source(x => {
+                let desc = Pango.FontDescription.from_string(x);
+                let getWeight = () => { try { return desc.get_weight(); } catch(e) { return parseInt(e.message); } }; // HACK: workaround for Pango.Weight enumeration exception (eg: 290)
+                IBusPopup.set_style(`font-weight: ${getWeight()};
                              font-family: "${desc.get_family()}";
                              font-style: ${Object.keys(Pango.Style)[desc.get_style()].toLowerCase()};
                              font-size: ${desc.get_size() / Pango.SCALE}${desc.get_size_is_absolute() ? 'px' : 'pt'};`);
+            }, () => IBusPopup.set_style(style)),
+        }, this);
+        this.$set = set.attach({fontname: [Field.FNTS, 'string', x => this.$src.font.summon(x)]}, this);
     }
 }
 
-class IBusOrientation extends Destroyable {
-    constructor(fulu) {
+class IBusOrientation extends Mortal {
+    constructor(set) {
         super();
-        symbiose(this, () => { IBusArea.setOrientation = this._originalSetOrientation; });
-        this._originalSetOrientation = IBusArea.setOrientation.bind(IBusArea);
-        this._fulu = fulu.attach({orientation: [Field.ORNS, 'uint']}, this);
-        IBusArea.setOrientation = noop;
-    }
-
-    set orientation(orientation) {
-        this._originalSetOrientation(orientation ? IBus.Orientation.HORIZONTAL : IBus.Orientation.VERTICAL);
+        this.$setOrientation = IBusArea.setOrientation.bind(IBusArea);
+        this.$set = set.attach({
+            orientation: [Field.ORNS, 'uint', x => this.$setOrientation(x ? IBus.Orientation.HORIZONTAL : IBus.Orientation.VERTICAL)],
+        }, this);
+        degrade({
+            orinetation: new Source(() => { IBusArea.setOrientation = noop; }, () => { IBusArea.setOrientation = this.$setOrientation; }, true),
+        }, this);
     }
 }
 
-class IBusPageButton extends Destroyable {
+class IBusPageButton extends Mortal {
     constructor() {
         super();
-        IBusArea._buttonBox.set_style('border-width: 0;');
-        IBusArea._previousButton.hide();
-        IBusArea._nextButton.hide();
-        symbiose(this, () => {
-            IBusArea._buttonBox.set_style('');
-            IBusArea._previousButton.show();
-            IBusArea._nextButton.show();
-        });
+        degrade({
+            page: new Source(() => {
+                IBusArea._buttonBox.set_style('border-width: 0;');
+                IBusArea._previousButton.hide();
+                IBusArea._nextButton.hide();
+            }, () => {
+                IBusArea._buttonBox.set_style('');
+                IBusArea._previousButton.show();
+                IBusArea._nextButton.show();
+            }, true),
+        }, this);
     }
 }
 
-class IBusThemeManager extends Destroyable {
-    constructor(fulu) {
+class IBusThemeManager extends Mortal {
+    constructor(set) {
         super();
-        this._replaceStyle();
-        this._bindSettings(fulu);
-        symbiose(this, () => this._restoreStyle());
+        this.$src = degrade({
+            light: new Light(x => { this.night = x; this.$onLightPut(); }),
+            style: new Source(() => this.$replaceStyle(), () => this.$restoreStyle(), true),
+        }, this);
+        this.$bindSettings(set);
+        this.$src.light.summon();
     }
 
-    _bindSettings(fulu) {
-        this._fulu_if = new Fulu({
+    $bindSettings(set) {
+        this.$set_if = new Setting({
             scheme: ['color-scheme', 'string', x => x === 'prefer-dark'],
-        }, 'org.gnome.desktop.interface', this, 'murkey');
-        this._fulu = fulu.attach({
+        }, 'org.gnome.desktop.interface', this, () => this.$onLightPut());
+        this.$set = set.attach({
             style: [Field.TSTL, 'uint'],
-            paint: [Field.THMS, 'uint', x => this._palette[x]],
-        }, this, 'murkey');
-        bindNight(x => ['_night', x], this, 'murkey');
+            paint: [Field.THMS, 'uint', x => this.palette[x]],
+        }, this, () => this.$onLightPut());
     }
 
-    set murkey([k, v, cb]) {
-        this[k] = cb?.(v) ?? v;
-        if(!has(this, '_night')) return;
-        let dark = this.style === Style.AUTO ? this._night
+    $onLightPut() {
+        if(!has(this, 'night')) return;
+        let dark = this.style === Style.AUTO ? this.night
             : this.style === Style.SYSTEM ? this.scheme : this.style === Style.DARK;
-        this._updateStyle(dark);
-        this._updateColor(dark);
+        this.$updateStyle(dark);
+        this.$updateColor(dark);
     }
 
-    _updateStyle(dark) {
+    $updateStyle(dark) {
         if(this.dark === dark) return;
         if((this.dark = dark)) IBusPopup.add_style_class_name('night');
         else IBusPopup.remove_style_class_name('night');
     }
 
-    _updateColor(dark) {
+    $updateColor(dark) {
         let color = dark ? `night-${this.paint}` : this.paint;
         if(this.color === color) return;
         if(this.color) IBusPopup.remove_style_class_name(this.color);
         IBusPopup.add_style_class_name(this.color = color);
     }
 
-    _replaceStyle() {
-        this._palette = ['red', 'green', 'orange', 'blue', 'purple', 'turquoise', 'grey'];
+    $replaceStyle() {
+        this.palette = ['red', 'green', 'orange', 'blue', 'purple', 'turquoise', 'grey'];
         syncStyleClass(IBusPopup, PopupStyleClass, x => x.replace(/candidate/g, 'ibus-tweaker-candidate'));
     }
 
-    _restoreStyle() {
+    $restoreStyle() {
         if(this.dark) IBusPopup.remove_style_class_name('night');
         if(this.color) IBusPopup.remove_style_class_name(this.color);
         syncStyleClass(IBusPopup, PopupStyleClass);
@@ -342,15 +337,14 @@ class IBusClipPopup extends BoxPointer.BoxPointer {
 
     constructor(page_btn, hooks) {
         super(St.Side.TOP);
-        this.visible = false;
-        this.reactive = true;
-        this._buildWidgets(page_btn, hooks);
+        this.set({visible: false, reactive: true});
+        this.$buildWidgets(page_btn, hooks);
         Main.layoutManager.addChrome(this);
         global.focus_manager.add_group(this);
         global.stage.set_key_focus(this);
     }
 
-    _buildWidgets(page_btn, hooks) {
+    $buildWidgets(page_btn, hooks) {
         let box = new St.BoxLayout({vertical: true});
         this.bin.set_child(box);
         let hbox = new St.BoxLayout();
@@ -360,10 +354,10 @@ class IBusClipPopup extends BoxPointer.BoxPointer {
         [this._preeditText, this._auxText].forEach(x => hbox.add_child(x));
         this._candidateArea = hook(hooks, new IBusClipArea());
         box.add_child(this._candidateArea);
-        this._replaceStyle(page_btn);
+        this.$replaceStyle(page_btn);
     }
 
-    _replaceStyle(page_btn) {
+    $replaceStyle(page_btn) {
         syncStyleClass(this, IBusPopup);
         this.set_style(IBusPopup.get_style());
         let [box] = IBusPopup._candidateArea._candidateBoxes,
@@ -379,16 +373,12 @@ class IBusClipPopup extends BoxPointer.BoxPointer {
         this._candidateArea._previousButton.hide();
     }
 
-    set preedit(text) {
+    setPreedit(text) {
         this._preeditText.set_text(`${_('📋：')}${text}`);
     }
 
-    set aux(num) {
-        this._auxText.set_text(_('%dC').format(num ?? 0));
-    }
-
-    get _area() {
-        return this._candidateArea;
+    setAuxText(count) {
+        this._auxText.set_text(_('%dC').format(count ?? 0));
     }
 
     summon(cursor) {
@@ -400,58 +390,57 @@ class IBusClipPopup extends BoxPointer.BoxPointer {
     }
 }
 
-class IBusClipHistory extends Destroyable {
-    constructor(fulu) {
+class IBusClipHistory extends Mortal {
+    constructor(set) {
         super();
-        this._buildWidgets(fulu);
-        this._bindSettings();
-        this._sbt.keys.revive(true);
+        this.$buildWidgets(set);
+        this.$bindSettings();
     }
 
-    _buildWidgets(fulu) {
-        this._fulu = fulu;
-        this._ptr = new Clutter.Actor({opacity: 0, x: 1, y: 1}); // workaround for the cursor jumping
-        Main.layoutManager.uiGroup.add_child(this._ptr);
-        this._sbt = symbiose(this, () => omit(this, '_ptr', '_pop'), {
-            keys: [x => x && Main.wm.removeKeybinding(Field.CKYS),
-                x => x && Main.wm.addKeybinding(Field.CKYS, this._fulu.gset, Meta.KeyBindingFlags.NONE, Shell.ActionMode.ALL, () => this.summon())],
-            commit: [clearTimeout, x => x && setTimeout(() => IBusManager._panelService?.commit_text(IBus.Text.new_from_string(x)), 30)],
-        });
-        connect(this, [global.display.get_selection(), 'owner-changed', this.onClipboardChange.bind(this)]);
+    $buildWidgets(set) {
+        this.$set = set;
+        this.$src = degrade({
+            ptr: new Clutter.Actor({opacity: 0, x: 1, y: 1}), // workaround for the cursor jumping
+            pop: new Source(() => hook({'captured-event': this.$onCapture.bind(this)}, new IBusClipPopup(this.page_btn, {
+                'cursor-up': () => this.setOffset(-1),
+                'cursor-down': () => this.setOffset(1),
+                'next-page': () => this.setOffset(this.page_size),
+                'candidate-clicked': this.$onCandidateClick.bind(this),
+                'previous-page': () => this.setOffset(-this.page_size),
+            }))),
+            keys: new Keys(this.$set.gset, Field.CKYS,  () => this.summon(), true),
+            commit: new Source(x => setTimeout(() => IBusManager._panelService?.commit_text(IBus.Text.new_from_string(x)), 30), clearTimeout),
+        }, this);
+        connect(this, global.display.get_selection(), 'owner-changed', this.$onClipboardChange.bind(this));
+        Main.layoutManager.uiGroup.add_child(this.$src.ptr);
     }
 
-    _bindSettings() {
-        this._fulu.attach({
+    $bindSettings() {
+        this.$set.attach({
             page_size: [Field.CLPS, 'uint'],
             page_btn:  [Field.PBTN, 'boolean'],
         }, this);
     }
 
     summon() {
-        if(this._pop || !IBusManager._ready || Main.overview._shown) return;
-        this._pop = hook({'captured-event': this.onCapturedEvent.bind(this)}, new IBusClipPopup(this.page_btn, {
-            'cursor-up': () => { this.offset = -1; },
-            'cursor-down': () => { this.offset = 1; },
-            'next-page': () => { this.offset = this.page_size; },
-            'candidate-clicked': this.onCandidateClick.bind(this),
-            'previous-page': () => { this.offset = -this.page_size; },
-        }));
-        this._lookup = [...ClipHist];
-        this._preedit = '';
-        this.cursor = 0;
+        if(this.$src.pop.active || !IBusManager._ready || Main.overview._shown) return;
+        this.$src.pop.summon();
+        this.lookup = [...ClipHist];
+        this.preedit = '';
+        this.setCursor(0);
         let {x, y, width, height} = IBusPopup._dummyCursor;
-        this._ptr.set_position(x, y);
-        this._ptr.set_size(width, height);
-        this._pop.summon(this._ptr);
+        this.$src.ptr.set_position(x, y);
+        this.$src.ptr.set_size(width, height);
+        this.$src.pop.hub.summon(this.$src.ptr);
     }
 
-    onClipboardChange(_sel, type) {
+    $onClipboardChange(_s, type) {
         if(type !== St.ClipboardType.CLIPBOARD) return;
-        St.Clipboard.get_default().get_text(St.ClipboardType.CLIPBOARD, (_clip, text) => {
+        St.Clipboard.get_default().get_text(St.ClipboardType.CLIPBOARD, (_c, text) => {
             if(!text) return;
             let index = ClipHist.findIndex(x => x[0] === text);
             if(index < 0) {
-                ClipHist.unshift([text, visibilize(ellipsize(text)), s2py(text.toLowerCase())]);
+                ClipHist.unshift([text, visibilize(ellipsize(text)), str2py(text.toLowerCase())]);
                 while(ClipHist.length > 64) ClipHist.pop();
             } else if(index > 0) {
                 [ClipHist[0], ClipHist[index]] = [ClipHist[index], ClipHist[0]];
@@ -459,28 +448,28 @@ class IBusClipHistory extends Destroyable {
         });
     }
 
-    onCapturedEvent(actor, event) {
+    $onCapture(actor, event) {
         let type = event.type();
         if(type === Clutter.EventType.KEY_PRESS) {
             let key = event.get_key_symbol();
             switch(key) {
-            case Clutter.KEY_Up:        this.offset = -1; break;
-            case Clutter.KEY_Down:      this.offset = 1; break;
+            case Clutter.KEY_Up:        this.setOffset(-1); break;
+            case Clutter.KEY_Down:      this.setOffset(1); break;
             case Clutter.KEY_Left:
-            case Clutter.KEY_Page_Up:   this.offset = -this.page_size; break;
+            case Clutter.KEY_Page_Up:   this.setOffset(-this.page_size); break;
             case Clutter.KEY_Right:
-            case Clutter.KEY_Page_Down: this.offset = this.page_size; break;
+            case Clutter.KEY_Page_Down: this.setOffset(this.page_size); break;
             case Clutter.KEY_space:
             case Clutter.KEY_Return:
             case Clutter.KEY_KP_Enter:
-            case Clutter.KEY_ISO_Enter: this.onCandidateClick(null, this._cursor - this._start, 1, 0); break;
+            case Clutter.KEY_ISO_Enter: this.$onCandidateClick(null, this.cursor - this.$start, 1, 0); break;
             case Clutter.KEY_Delete:    this.deleteCurrent(); break;
             case Clutter.KEY_backslash: this.mergeCurrent(); break;
-            case Clutter.KEY_BackSpace: this.preedit = this._preedit.slice(0, -1); break;
+            case Clutter.KEY_BackSpace: this.setPreedit(this.preedit.slice(0, -1)); break;
             default:
                 if(key < 33 || key > 126) this.dispel();
                 else if(key > 47 && key < 58) this.selectAt(String.fromCharCode(key));
-                else this.preedit = this._preedit + String.fromCharCode(key); break;
+                else this.setPreedit(this.preedit + String.fromCharCode(key)); break;
             }
             return Clutter.EVENT_STOP;
         } else if((type === Clutter.EventType.BUTTON_PRESS || type === Clutter.EventType.TOUCH_BEGIN) &&
@@ -491,109 +480,93 @@ class IBusClipHistory extends Destroyable {
         return Clutter.EVENT_PROPAGATE;
     }
 
-    set offset(offset) {
-        let pos = this._cursor + offset;
-        if(pos >= 0 && pos < this._lookup.length) {
-            this.cursor = pos;
-        } else if(pos >= this._lookup.length) {
-            let expectation = (this._page + 1) * this.page_size;
-            if(this._lookup.length > expectation) this.cursor = expectation;
+    setOffset(offset) {
+        let pos = this.cursor + offset;
+        if(pos >= 0 && pos < this.lookup.length) {
+            this.setCursor(pos);
+        } else if(pos >= this.lookup.length) {
+            let expectation = (this.$page + 1) * this.page_size;
+            if(this.lookup.length > expectation) this.setCursor(expectation);
         }
     }
 
-    set cursor(cursor) {
-        this._cursor = cursor;
-        this.updateLookupTable();
+    setCursor(cursor) {
+        this.cursor = cursor;
+        this.$page = Math.floor(this.cursor / this.page_size);
+        this.$start = this.$page * this.page_size;
+        this.$size = Math.min(this.page_size, this.lookup.length - this.$start);
+        let indices = this.$size ? Indices.slice(0, this.$size) : ['\u2205'];
+        let candidates = this.$size ? this.lookup.slice(this.$start, this.$start + this.$size).map(x => x[1]) : [_('Empty history.')];
+        let pop = this.$src.pop.hub;
+        pop._candidateArea.setCandidates(indices, candidates, this.cursor % this.page_size, this.$size);
+        pop._candidateArea.updateButtons(false, this.$page, Math.ceil(this.lookup.length / this.page_size));
+        pop.setAuxText(this.lookup[this.cursor]?.[0].length);
+        pop.setPreedit(this.preedit);
     }
 
-    updateLookupTable() {
-        this._page = Math.floor(this._cursor / this.page_size);
-        this._start = this._page * this.page_size;
-        this._size = Math.min(this.page_size, this._lookup.length - this._start);
-        let indices = this._size ? Indices.slice(0, this._size) : ['\u2205'];
-        let candidates = this._size ? this._lookup.slice(this._start, this._start + this._size).map(x => x[1]) : [_('Empty history.')];
-        this._pop._area.setCandidates(indices, candidates, this._cursor % this.page_size, this._size);
-        this._pop._area.updateButtons(false, this._page, Math.ceil(this._lookup.length / this.page_size));
-        this._pop.aux = this._lookup[this._cursor]?.[0].length;
-        this._pop.preedit = this._preedit;
-    }
-
-    onCandidateClick(_area, index) {
+    $onCandidateClick(_a, index) {
         this.dispel();
         this.commitAt(index);
     }
 
     commitAt(index) {
-        this._sbt.commit.revive(this._lookup[this._start + index]?.at(0));
+        this.$src.commit.revive(this.lookup[this.$start + index]?.at(0));
     }
 
     deleteCurrent() {
-        let index = ClipHist.findIndex(x => x[0] === this._lookup[this._cursor][0]);
-        if(index === -1) return;
+        let index = ClipHist.findIndex(x => x[0] === this.lookup[this.cursor][0]);
+        if(index < 0) return;
         ClipHist.splice(index, 1);
-        this._lookup.splice(this._cursor, 1);
-        this.cursor = this._cursor >= this._lookup.length ? Math.max(this._lookup.length - 1, 0) : this._cursor;
+        this.lookup.splice(this.cursor, 1);
+        this.setCursor(this.cursor >= this.lookup.length ? Math.max(this.lookup.length - 1, 0) : this.cursor);
     }
 
     mergeCurrent() {
-        let index = ClipHist.findIndex(x => x[0] === this._lookup[this._cursor][0]);
-        if(index === -1 || index >= this._lookup.length - 1) return;
-        this._lookup.splice(this._cursor, 1);
+        let index = ClipHist.findIndex(x => x[0] === this.lookup[this.cursor][0]);
+        if(index < 0 || index >= this.lookup.length - 1) return;
+        this.lookup.splice(this.cursor, 1);
         let [clip] = ClipHist.splice(index, 1),
             hays = ClipHist[index][2] + clip[2],
             text = `${ClipHist[index][0]} ${clip[0]}`;
-        this._lookup[this._cursor] = ClipHist[index] = [text, visibilize(ellipsize(text)), hays];
-        this.cursor = this._cursor;
+        this.lookup[this.cursor] = ClipHist[index] = [text, visibilize(ellipsize(text)), hays];
+        this.setCursor(this.cursor);
     }
 
     selectAt(key) {
         let index = Indices.findIndex(x => x === key);
-        if(index < 0 || index >= this._size) this.dispel();
-        else this.onCandidateClick(null, index, 1, 0);
+        if(index < 0 || index >= this.$size) this.dispel();
+        else this.$onCandidateClick(null, index, 1, 0);
     }
 
-    set preedit(preedit) {
-        if(this._preedit === preedit) return;
-        this._preedit = preedit;
-        this._lookup = ClipHist.filter(x => fuzzySearch(this._preedit, x[2]));
-        this.cursor = 0;
+    setPreedit(preedit) {
+        if(this.preedit === preedit) return;
+        this.preedit = preedit;
+        this.lookup = ClipHist.filter(x => fuzzySearch(this.preedit, x[2]));
+        this.setCursor(0);
     }
 
     dispel() {
-        omit(this, '_pop');
+        this.$src.pop.dispel();
     }
 }
 
-class IBusTweaker extends Destroyable {
+class IBusTweaker extends Mortal {
     constructor(gset) {
         super();
-        this._buildWidgets(gset);
-        this._bindSettings();
-    }
-
-    _buildWidgets(gset) {
-        this._tweaks = {};
-        this._fulu = new Fulu({}, gset, this);
         IBusPopup._dummyCursor.set_position(1, 1); // HACK: workaround for popup jumping
         syncStyleClass(PopupStyleClass, IBusPopup);
-        symbiose(this, () => omit(this._tweaks, ...Object.keys(this._tweaks)));
-    }
-
-    _bindSettings() {
-        this._fulu.attach({
-            clip:   [Field.CLP,  'boolean', IBusClipHistory],
-            font:   [Field.FNT,  'boolean', IBusFontSetting],
-            input:  [Field.ATSW, 'boolean', IBusAutoSwitch],
-            orient: [Field.ORN,  'boolean', IBusOrientation],
-            pgbtn:  [Field.PBTN, 'boolean', IBusPageButton],
-            theme:  [Field.THM,  'boolean', IBusThemeManager],
-        }, this, 'tweaks');
-    }
-
-    set tweaks([k, v, klass]) {
-        if(v) this._tweaks[k] ??= new klass(this._fulu);
-        else omit(this._tweaks, k);
+        let tweaks = {
+            clip:   [Field.CLP,  IBusClipHistory],
+            font:   [Field.FNT,  IBusFontSetting],
+            input:  [Field.ATSW, IBusAutoSwitch],
+            orient: [Field.ORN,  IBusOrientation],
+            pgbtn:  [Field.PBTN, IBusPageButton],
+            theme:  [Field.THM,  IBusThemeManager],
+        };
+        this.$set = new Setting(null, gset, this);
+        this.$src = degrade(vmap(tweaks, ([, klass]) => new Source(() => new klass(this.$set))), this);
+        this.$set.attach(vmap(tweaks, ([field]) => [field, 'boolean', (v, k) => this.$src[k].toggle(v)]), this);
     }
 }
 
-export default class Extension extends ExtensionBase { $klass = IBusTweaker; }
+export default class MyExtension extends Extension { $klass = IBusTweaker; }
