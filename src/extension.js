@@ -14,8 +14,8 @@ import * as BoxPointer from 'resource:///org/gnome/shell/ui/boxpointer.js';
 
 import {Field} from './const.js';
 import {str2py} from './pinyin.js';
-import {noop, hook, id as echo, has, vmap} from './util.js';
-import {Setting, Extension, Mortal, Source, Keys, Light, degrade, connect, _} from './fubar.js';
+import {noop, hook, id as echo, has, vmap, Y} from './util.js';
+import {Setting, Extension, Mortal, Source, connect, _} from './fubar.js';
 
 const InputManager = Main.panel.statusArea.keyboard._inputSourceManager;
 const IBusManager = InputManager._ibusManager;
@@ -46,8 +46,8 @@ const ellipsize = (s, l = 20) => s.length > 2 * l ? `${s.slice(0, l)}\u2026${s.s
 const visibilize = (s, t = [[/\n|\r/g, '\u21b5'], ['\t', '\u21e5']]) => t.reduce((p, x) => p.replaceAll(...x), s);
 
 function syncStyleClass(aim, src, func = echo, obj = PopupStyleClass) {
-    Object.keys(obj).forEach(k => obj[k] instanceof Object
-        ? aim[k] && syncStyleClass(aim[k], src[k], func, obj[k]) : k === 'style_class' && (aim[k] = func(src[k])));
+    return Y(f => (a, b, c) => Object.keys(c).forEach(k => c[k] instanceof Object
+        ? a[k] && f(a[k], b[k], c[k]) : k === 'style_class' && (a[k] = func(b[k]))))(aim, src, obj);
 }
 
 function fuzzySearch(needle, haystack) {
@@ -72,8 +72,8 @@ class IBusAutoSwitch extends Mortal {
         this.$set = set;
         connect(this, global.display, 'notify::focus-window', () => this.toggleInputMode(),
             Main.overview, 'hidden', () => this.setEmpty(), 'shown', () => this.setEmpty('#overview'));
-        this.$src = degrade({
-            keys: new Keys(this.$set.gset, Field.RKYS, () => this.openRunDialog()),
+        this.$src = Source.fuse({
+            keys: Source.newKeys(this.$set.gset, Field.RKYS, () => this.openRunDialog()),
         }, this);
     }
 
@@ -157,7 +157,7 @@ class IBusFontSetting extends Mortal {
     constructor(set) {
         super();
         let style = IBusPopup.get_style();
-        this.$src = degrade({
+        this.$src = Source.fuse({
             font: new Source(x => {
                 let desc = Pango.FontDescription.from_string(x);
                 let getWeight = () => { try { return desc.get_weight(); } catch(e) { return parseInt(e.message); } }; // HACK: workaround for Pango.Weight enumeration exception (eg: 290)
@@ -178,7 +178,7 @@ class IBusOrientation extends Mortal {
         this.$set = set.attach({
             orientation: [Field.ORNS, 'uint', x => this.$setOrientation(x ? IBus.Orientation.HORIZONTAL : IBus.Orientation.VERTICAL)],
         }, this);
-        degrade({
+        Source.fuse({
             orinetation: new Source(() => { IBusArea.setOrientation = noop; }, () => { IBusArea.setOrientation = this.$setOrientation; }, true),
         }, this);
     }
@@ -187,7 +187,7 @@ class IBusOrientation extends Mortal {
 class IBusPageButton extends Mortal {
     constructor() {
         super();
-        degrade({
+        Source.fuse({
             page: new Source(() => {
                 IBusArea._buttonBox.set_style('border-width: 0;');
                 IBusArea._previousButton.hide();
@@ -204,12 +204,11 @@ class IBusPageButton extends Mortal {
 class IBusThemeManager extends Mortal {
     constructor(set) {
         super();
-        this.$src = degrade({
-            light: new Light(x => { this.night = x; this.$onLightPut(); }),
+        this.$src = Source.fuse({
+            light: Source.newLight(x => { this.night = x; this.$onLightPut(); }, true),
             style: new Source(() => this.$replaceStyle(), () => this.$restoreStyle(), true),
         }, this);
         this.$bindSettings(set);
-        this.$src.light.summon();
     }
 
     $bindSettings(set) {
@@ -399,7 +398,7 @@ class IBusClipHistory extends Mortal {
 
     $buildWidgets(set) {
         this.$set = set;
-        this.$src = degrade({
+        this.$src = Source.fuse({
             ptr: new Clutter.Actor({opacity: 0, x: 1, y: 1}), // workaround for the cursor jumping
             pop: new Source(() => hook({'captured-event': this.$onCapture.bind(this)}, new IBusClipPopup(this.page_btn, {
                 'cursor-up': () => this.setOffset(-1),
@@ -408,8 +407,8 @@ class IBusClipHistory extends Mortal {
                 'candidate-clicked': this.$onCandidateClick.bind(this),
                 'previous-page': () => this.setOffset(-this.page_size),
             }))),
-            keys: new Keys(this.$set.gset, Field.CKYS,  () => this.summon(), true),
-            commit: new Source(x => setTimeout(() => IBusManager._panelService?.commit_text(IBus.Text.new_from_string(x)), 30), clearTimeout),
+            keys: Source.newKeys(this.$set.gset, Field.CKYS,  () => this.summon(), true),
+            commit: Source.newTimer(x => [() => IBusManager._panelService?.commit_text(IBus.Text.new_from_string(x)), 30]),
         }, this);
         connect(this, global.display.get_selection(), 'owner-changed', this.$onClipboardChange.bind(this));
         Main.layoutManager.uiGroup.add_child(this.$src.ptr);
@@ -467,14 +466,14 @@ class IBusClipHistory extends Mortal {
             case Clutter.KEY_backslash: this.mergeCurrent(); break;
             case Clutter.KEY_BackSpace: this.setPreedit(this.preedit.slice(0, -1)); break;
             default:
-                if(key < 33 || key > 126) this.dispel();
+                if(key < 33 || key > 126) this.$src.pop.dispel();
                 else if(key > 47 && key < 58) this.selectAt(String.fromCharCode(key));
                 else this.setPreedit(this.preedit + String.fromCharCode(key)); break;
             }
             return Clutter.EVENT_STOP;
         } else if((type === Clutter.EventType.BUTTON_PRESS || type === Clutter.EventType.TOUCH_BEGIN) &&
                   !actor.contains(global.stage.get_event_actor(event))) {
-            this.dispel();
+            this.$src.pop.dispel();
             return Clutter.EVENT_STOP;
         }
         return Clutter.EVENT_PROPAGATE;
@@ -505,11 +504,7 @@ class IBusClipHistory extends Mortal {
     }
 
     $onCandidateClick(_a, index) {
-        this.dispel();
-        this.commitAt(index);
-    }
-
-    commitAt(index) {
+        this.$src.pop.dispel();
         this.$src.commit.revive(this.lookup[this.$start + index]?.at(0));
     }
 
@@ -534,7 +529,7 @@ class IBusClipHistory extends Mortal {
 
     selectAt(key) {
         let index = Indices.findIndex(x => x === key);
-        if(index < 0 || index >= this.$size) this.dispel();
+        if(index < 0 || index >= this.$size) this.$src.pop.dispel();
         else this.$onCandidateClick(null, index, 1, 0);
     }
 
@@ -543,10 +538,6 @@ class IBusClipHistory extends Mortal {
         this.preedit = preedit;
         this.lookup = ClipHist.filter(x => fuzzySearch(this.preedit, x[2]));
         this.setCursor(0);
-    }
-
-    dispel() {
-        this.$src.pop.dispel();
     }
 }
 
@@ -564,7 +555,7 @@ class IBusTweaker extends Mortal {
             theme:  [Field.THM,  IBusThemeManager],
         };
         this.$set = new Setting(null, gset, this);
-        this.$src = degrade(vmap(tweaks, ([, klass]) => new Source(() => new klass(this.$set))), this);
+        this.$src = Source.fuse(vmap(tweaks, ([, klass]) => new Source(() => new klass(this.$set))), this);
         this.$set.attach(vmap(tweaks, ([field]) => [field, 'boolean', (v, k) => this.$src[k].toggle(v)]), this);
     }
 }
