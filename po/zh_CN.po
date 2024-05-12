@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: gnome-shell-extension-ibus-tweaker 35\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2024-05-01 18:47+0800\n"
+"POT-Creation-Date: 2024-05-12 14:38+0800\n"
 "PO-Revision-Date: 2021-08-18 14:09+0800\n"
 "Last-Translator: Automatically generated\n"
 "Language-Team: none\n"
@@ -37,7 +37,7 @@ msgstr "清除"
 msgid "Mismatched filetype"
 msgstr "文件类型不匹配"
 
-#: src/ui.js:626
+#: src/ui.js:625
 msgid "Click or press ENTER to commit changes"
 msgstr "单击或按回车提交更改"
 
@@ -125,16 +125,16 @@ msgstr "自定义字体"
 msgid "Clipboard history"
 msgstr "剪贴板历史"
 
-#: src/extension.js:376
+#: src/extension.js:375
 msgid "📋："
 msgstr "📋："
 
-#: src/extension.js:380
+#: src/extension.js:379
 #, javascript-format
 msgid "%dC"
 msgstr "%d字"
 
-#: src/extension.js:498
+#: src/extension.js:495
 msgid "Empty history."
 msgstr "空空如也。"
 

@@ -15,7 +15,7 @@ import * as BoxPointer from 'resource:///org/gnome/shell/ui/boxpointer.js';
 import {Field} from './const.js';
 import {str2py} from './pinyin.js';
 import {noop, hook, id as echo, has, vmap, Y} from './util.js';
-import {Setting, Extension, Mortal, Source, connect, _} from './fubar.js';
+import {Setting, Extension, Mortal, Source, paste, connect, _} from './fubar.js';
 
 const InputManager = Main.panel.statusArea.keyboard._inputSourceManager;
 const IBusManager = InputManager._ibusManager;
@@ -85,8 +85,7 @@ class IBusAutoSwitch extends Mortal {
     }
 
     *enumerateProps(props) {
-        if(!props) return;
-        for(let p, i = 0; (p = props.get(i)); i++) if(p.key.startsWith('InputMode')) yield p;
+        if(props) for(let p, i = 0; (p = props.get(i)); i++) if(p.key.startsWith('InputMode')) yield p;
     }
 
     getInputMode(props) {
@@ -433,18 +432,16 @@ class IBusClipHistory extends Mortal {
         this.$src.pop.hub.summon(this.$src.ptr);
     }
 
-    $onClipboardChange(_s, type) {
+    async $onClipboardChange(_s, type) {
         if(type !== St.ClipboardType.CLIPBOARD) return;
-        St.Clipboard.get_default().get_text(St.ClipboardType.CLIPBOARD, (_c, text) => {
-            if(!text) return;
-            let index = ClipHist.findIndex(x => x[0] === text);
-            if(index < 0) {
-                ClipHist.unshift([text, visibilize(ellipsize(text)), str2py(text.toLowerCase())]);
-                while(ClipHist.length > 64) ClipHist.pop();
-            } else if(index > 0) {
-                [ClipHist[0], ClipHist[index]] = [ClipHist[index], ClipHist[0]];
-            }
-        });
+        let text = await paste();
+        let index = ClipHist.findIndex(x => x[0] === text);
+        if(index < 0) {
+            ClipHist.unshift([text, visibilize(ellipsize(text)), str2py(text.toLowerCase())]);
+            while(ClipHist.length > 64) ClipHist.pop();
+        } else if(index > 0) {
+            [ClipHist[0], ClipHist[index]] = [ClipHist[index], ClipHist[0]];
+        }
     }
 
     $onCapture(actor, event) {
