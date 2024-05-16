@@ -26,20 +26,20 @@ const ClipHist = [];
 const Style = {AUTO: 0, LIGHT: 1, DARK: 2, SYSTEM: 3};
 const Indices = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'];
 const PopupStyleClass = {
-    style_class: '',
+    styleClass: '',
     _candidateArea: {
         _candidateBoxes: Array(16).fill({
-            style_class: '',
-            _indexLabel: {style_class: ''},
-            _candidateLabel: {style_class: ''},
+            styleClass: '',
+            _indexLabel: {styleClass: ''},
+            _candidateLabel: {styleClass: ''},
         }),
-        _buttonBox: {style_class: ''},
-        _previousButton: {style_class: ''},
-        _nextButton: {style_class: ''},
+        _buttonBox: {styleClass: ''},
+        _previousButton: {styleClass: ''},
+        _nextButton: {styleClass: ''},
     },
-    bin: {child: {style_class: ''}},
-    _preeditText: {style_class: ''},
-    _auxText: {style_class: ''},
+    bin: {child: {styleClass: ''}},
+    _preeditText: {styleClass: ''},
+    _auxText: {styleClass: ''},
 };
 
 const ellipsize = (s, l = 20) => s.length > 2 * l ? `${s.slice(0, l)}\u2026${s.slice(-l)}` : s;
@@ -47,7 +47,7 @@ const visibilize = (s, t = [[/\n|\r/g, '\u21b5'], ['\t', '\u21e5']]) => t.reduce
 
 function syncStyleClass(aim, src, func = echo, obj = PopupStyleClass) {
     return Y(f => (a, b, c) => Object.keys(c).forEach(k => c[k] instanceof Object
-        ? a[k] && f(a[k], b[k], c[k]) : k === 'style_class' && (a[k] = func(b[k]))))(aim, src, obj);
+        ? a[k] && f(a[k], b[k], c[k]) : k === 'styleClass' && (a[k] = func(b[k]))))(aim, src, obj);
 }
 
 function fuzzySearch(needle, haystack) {
@@ -72,9 +72,7 @@ class IBusAutoSwitch extends Mortal {
         this.$set = set;
         connect(this, global.display, 'notify::focus-window', () => this.toggleInputMode(),
             Main.overview, 'hidden', () => this.setEmpty(), 'shown', () => this.setEmpty('#overview'));
-        this.$src = Source.fuse({
-            keys: Source.newKeys(this.$set.gset, Field.RKYS, () => this.openRunDialog()),
-        }, this);
+        this.$src = Source.fuse({keys: Source.newKeys(this.$set.gset, Field.RKYS, () => this.openRunDialog())}, this);
     }
 
     $bindSettings() {
@@ -89,11 +87,11 @@ class IBusAutoSwitch extends Mortal {
     }
 
     getInputMode(props) {
-        for(let {prop_type, symbol, label, state, sub_props, key} of this.enumerateProps(props)) {
-            switch(prop_type) {
+        for(let {propType, symbol, label, state, subProps, key} of this.enumerateProps(props)) {
+            switch(propType) {
             case IBus.PropType.NORMAL: return symbol?.get_text() ?? label.get_text(); // ibus-libpinyin
             case IBus.PropType.TOGGLE: return state.toString(); // ibus-hangul
-            case IBus.PropType.MENU: return this.getInputMode(sub_props); // ibus-typing-booster
+            case IBus.PropType.MENU: return this.getInputMode(subProps); // ibus-typing-booster
             case IBus.PropType.RADIO: if(state) return key.split('.').at(-1); break; // ibus-typing-booster
             }
         }
@@ -101,11 +99,11 @@ class IBusAutoSwitch extends Mortal {
     }
 
     setInputMode(props, mode) {
-        for(let {prop_type, key, state, sub_props} of this.enumerateProps(props)) {
-            switch(prop_type) {
+        for(let {propType, key, state, subProps} of this.enumerateProps(props)) {
+            switch(propType) {
             case IBus.PropType.NORMAL:
             case IBus.PropType.TOGGLE: return this.activate(key, !state);
-            case IBus.PropType.MENU: return this.setInputMode(sub_props, mode);
+            case IBus.PropType.MENU: return this.setInputMode(subProps, mode);
             case IBus.PropType.RADIO: if(key.endsWith(mode)) return this.activate(key, !state); break;
             }
         }
@@ -166,7 +164,7 @@ class IBusFontSetting extends Mortal {
                              font-size: ${desc.get_size() / Pango.SCALE}${desc.get_size_is_absolute() ? 'px' : 'pt'};`);
             }, () => IBusPopup.set_style(style)),
         }, this);
-        this.$set = set.attach({fontname: [Field.FNTS, 'string', x => this.$src.font.summon(x)]}, this);
+        this.$set = set.attach({fontName: [Field.FNTS, 'string', x => this.$src.font.summon(x)]}, this);
     }
 }
 
@@ -211,7 +209,7 @@ class IBusThemeManager extends Mortal {
     }
 
     $bindSettings(set) {
-        this.$set_if = new Setting({
+        this.$setIf = new Setting({
             scheme: ['color-scheme', 'string', x => x === 'prefer-dark'],
         }, 'org.gnome.desktop.interface', this, () => this.$onLightPut());
         this.$set = set.attach({
@@ -276,7 +274,7 @@ class IBusClipArea extends St.BoxLayout {
             return Clutter.EVENT_PROPAGATE;
         };
         Indices.forEach((_x, i) => {
-            let box = hook({'button-release-event': onClick(i)}, new St.BoxLayout({reactive: true, track_hover: true}));
+            let box = hook({'button-release-event': onClick(i)}, new St.BoxLayout({reactive: true, trackHover: true}));
             box._indexLabel = new St.Label();
             box.add_child(box._indexLabel);
             box._candidateLabel = new St.Label();
@@ -285,9 +283,9 @@ class IBusClipArea extends St.BoxLayout {
             this.add_child(box);
         });
         this._buttonBox = new St.BoxLayout();
-        this._previousButton = hook({clicked: () => this.emit('previous-page')}, new St.Button({x_expand: true, icon_name: 'go-up-symbolic'}));
+        this._previousButton = hook({clicked: () => this.emit('previous-page')}, new St.Button({xExpand: true, iconName: 'go-up-symbolic'}));
         this._buttonBox.add_child(this._previousButton);
-        this._nextButton = hook({clicked: () => this.emit('next-page')}, new St.Button({x_expand: true, icon_name: 'go-down-symbolic'}));
+        this._nextButton = hook({clicked: () => this.emit('next-page')}, new St.Button({xExpand: true, iconName: 'go-down-symbolic'}));
         this._buttonBox.add_child(this._nextButton);
         this.add_child(this._buttonBox);
         this._orientation = -1;
@@ -333,16 +331,16 @@ class IBusClipPopup extends BoxPointer.BoxPointer {
         GObject.registerClass(this);
     }
 
-    constructor(page_btn, hooks) {
+    constructor(pageBtn, hooks) {
         super(St.Side.TOP);
         this.set({visible: false, reactive: true});
-        this.$buildWidgets(page_btn, hooks);
+        this.$buildWidgets(pageBtn, hooks);
         Main.layoutManager.addChrome(this);
-        global.focus_manager.add_group(this);
+        global.focusManager.add_group(this);
         global.stage.set_key_focus(this);
     }
 
-    $buildWidgets(page_btn, hooks) {
+    $buildWidgets(pageBtn, hooks) {
         let box = new St.BoxLayout({vertical: true});
         this.bin.set_child(box);
         let hbox = new St.BoxLayout();
@@ -352,10 +350,10 @@ class IBusClipPopup extends BoxPointer.BoxPointer {
         [this._preeditText, this._auxText].forEach(x => hbox.add_child(x));
         this._candidateArea = hook(hooks, new IBusClipArea());
         box.add_child(this._candidateArea);
-        this.$replaceStyle(page_btn);
+        this.$replaceStyle(pageBtn);
     }
 
-    $replaceStyle(page_btn) {
+    $replaceStyle(pageBtn) {
         syncStyleClass(this, IBusPopup);
         this.set_style(IBusPopup.get_style());
         let [box] = IBusPopup._candidateArea._candidateBoxes,
@@ -365,7 +363,7 @@ class IBusClipPopup extends BoxPointer.BoxPointer {
             x._indexLabel.set_style(i_style);
             x._candidateLabel.set_style(c_style);
         });
-        if(!page_btn) return;
+        if(!pageBtn) return;
         this._candidateArea._buttonBox.set_style('border-width: 0;');
         this._candidateArea._nextButton.hide();
         this._candidateArea._previousButton.hide();
@@ -399,12 +397,12 @@ class IBusClipHistory extends Mortal {
         this.$set = set;
         this.$src = Source.fuse({
             ptr: new Clutter.Actor({opacity: 0, x: 1, y: 1}), // workaround for the cursor jumping
-            pop: new Source(() => hook({'captured-event': this.$onCapture.bind(this)}, new IBusClipPopup(this.page_btn, {
+            pop: new Source(() => hook({'captured-event': this.$onCapture.bind(this)}, new IBusClipPopup(this.pageBtn, {
                 'cursor-up': () => this.setOffset(-1),
                 'cursor-down': () => this.setOffset(1),
-                'next-page': () => this.setOffset(this.page_size),
+                'next-page': () => this.setOffset(this.pageSize),
                 'candidate-clicked': this.$onCandidateClick.bind(this),
-                'previous-page': () => this.setOffset(-this.page_size),
+                'previous-page': () => this.setOffset(-this.pageSize),
             }))),
             keys: Source.newKeys(this.$set.gset, Field.CKYS,  () => this.summon(), true),
             commit: Source.newTimer(x => [() => IBusManager._panelService?.commit_text(IBus.Text.new_from_string(x)), 30]),
@@ -415,8 +413,8 @@ class IBusClipHistory extends Mortal {
 
     $bindSettings() {
         this.$set.attach({
-            page_size: [Field.CLPS, 'uint'],
-            page_btn:  [Field.PBTN, 'boolean'],
+            pageSize: [Field.CLPS, 'uint'],
+            pageBtn:  [Field.PBTN, 'boolean'],
         }, this);
     }
 
@@ -452,9 +450,9 @@ class IBusClipHistory extends Mortal {
             case Clutter.KEY_Up:        this.setOffset(-1); break;
             case Clutter.KEY_Down:      this.setOffset(1); break;
             case Clutter.KEY_Left:
-            case Clutter.KEY_Page_Up:   this.setOffset(-this.page_size); break;
+            case Clutter.KEY_Page_Up:   this.setOffset(-this.pageSize); break;
             case Clutter.KEY_Right:
-            case Clutter.KEY_Page_Down: this.setOffset(this.page_size); break;
+            case Clutter.KEY_Page_Down: this.setOffset(this.pageSize); break;
             case Clutter.KEY_space:
             case Clutter.KEY_Return:
             case Clutter.KEY_KP_Enter:
@@ -481,21 +479,21 @@ class IBusClipHistory extends Mortal {
         if(pos >= 0 && pos < this.lookup.length) {
             this.setCursor(pos);
         } else if(pos >= this.lookup.length) {
-            let expectation = (this.$page + 1) * this.page_size;
+            let expectation = (this.$page + 1) * this.pageSize;
             if(this.lookup.length > expectation) this.setCursor(expectation);
         }
     }
 
     setCursor(cursor) {
         this.cursor = cursor;
-        this.$page = Math.floor(this.cursor / this.page_size);
-        this.$start = this.$page * this.page_size;
-        this.$size = Math.min(this.page_size, this.lookup.length - this.$start);
-        let indices = this.$size ? Indices.slice(0, this.$size) : ['\u2205'];
-        let candidates = this.$size ? this.lookup.slice(this.$start, this.$start + this.$size).map(x => x[1]) : [_('Empty history.')];
-        let pop = this.$src.pop.hub;
-        pop._candidateArea.setCandidates(indices, candidates, this.cursor % this.page_size, this.$size);
-        pop._candidateArea.updateButtons(false, this.$page, Math.ceil(this.lookup.length / this.page_size));
+        this.$page = Math.floor(this.cursor / this.pageSize);
+        this.$start = this.$page * this.pageSize;
+        this.$size = Math.min(this.pageSize, this.lookup.length - this.$start);
+        let indices = this.$size ? Indices.slice(0, this.$size) : ['\u2205'],
+            candidates = this.$size ? this.lookup.slice(this.$start, this.$start + this.$size).map(x => x[1]) : [_('Empty history.')],
+            pop = this.$src.pop.hub;
+        pop._candidateArea.setCandidates(indices, candidates, this.cursor % this.pageSize, this.$size);
+        pop._candidateArea.updateButtons(false, this.$page, Math.ceil(this.lookup.length / this.pageSize));
         pop.setAuxText(this.lookup[this.cursor]?.[0].length);
         pop.setPreedit(this.preedit);
     }
