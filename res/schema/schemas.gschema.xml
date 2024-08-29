@@ -5,10 +5,6 @@
         <default>true</default>
         <summary>enable dialog hotkey</summary>
     </key>
-    <key type="b" name="enable-orientation">
-        <default>false</default>
-        <summary>enable orientation</summary>
-    </key>
     <key type="b" name="use-custom-font">
         <default>false</default>
         <summary>use custom font</summary>
@@ -29,11 +25,6 @@
         <default>false</default>
         <summary>enable clip history</summary>
     </key>
-    <key type="u" name="candidate-orientation">
-        <range min="0" max="1"/>
-        <default>0</default>
-        <summary>candidate orientation</summary>
-    </key>
     <key type="u" name="clip-history-page-size">
         <default>5</default>
         <range min="4" max="10"/>
@@ -43,11 +34,6 @@
         <default>0</default>
         <range min="0" max="3"/>
         <summary>default color vatiant(0 - auto, 1 - light, 2 - dark, 3 - system)</summary>
-    </key>
-    <key type="u" name="ms-theme-color">
-        <default>3</default>
-        <range min="0" max="7"/>
-        <summary>MS theme color</summary>
     </key>
     <key type="a{s(ss)}" name="input-modes">
         <default>[]</default>

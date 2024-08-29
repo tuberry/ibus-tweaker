@@ -1,7 +1,7 @@
 project(
   'gnome-shell-extension-ibus-tweaker',
   license: 'GPL-3.0-or-later',
-  version: '46.1',
+  version: '47.beta',
 )
 
 _name = meson.project_name().replace('gnome-shell-extension-', '')
@@ -14,7 +14,7 @@ metadata = {
     'url': 'https://github.com/tuberry' / _name,
     'schemas': 'org.gnome.shell.extensions.' + _name,
     'version': (_version != 0) ? _version : run_command('cli/get-version.sh', check: true, env: ['EGO=2820' / _name]).stdout().strip(),
-    'description': 'Tweaker of IBus for orientation, theme, font, input mode and clipboard history'
+    'description': 'Tweaker of IBus for theme, font, input mode and clipboard history'
       + '\\n\\nFor support, please report any issues via the homepage link below.',
 }
 

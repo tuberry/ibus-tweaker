@@ -15,7 +15,7 @@ import * as BoxPointer from 'resource:///org/gnome/shell/ui/boxpointer.js';
 import {Field} from './const.js';
 import {str2py} from './pinyin.js';
 import {noop, hook, id as echo, has, vmap, Y} from './util.js';
-import {Setting, Extension, Mortal, Source, paste, connect, _} from './fubar.js';
+import {Setting, Extension, Mortal, Source, paste, connect, extent, _} from './fubar.js';
 
 const InputManager = Main.panel.statusArea.keyboard._inputSourceManager;
 const IBusManager = InputManager._ibusManager;
@@ -168,19 +168,6 @@ class IBusFontSetting extends Mortal {
     }
 }
 
-class IBusOrientation extends Mortal {
-    constructor(set) {
-        super();
-        this.$setOrientation = IBusArea.setOrientation.bind(IBusArea);
-        this.$set = set.attach({
-            orientation: [Field.ORNS, 'uint', x => this.$setOrientation(x ? IBus.Orientation.HORIZONTAL : IBus.Orientation.VERTICAL)],
-        }, this);
-        Source.fuse({
-            orinetation: new Source(() => { IBusArea.setOrientation = noop; }, () => { IBusArea.setOrientation = this.$setOrientation; }, true),
-        }, this);
-    }
-}
-
 class IBusPageButton extends Mortal {
     constructor() {
         super();
@@ -212,10 +199,7 @@ class IBusThemeManager extends Mortal {
         this.$setIf = new Setting({
             scheme: ['color-scheme', 'string', x => x === 'prefer-dark'],
         }, 'org.gnome.desktop.interface', this, () => this.$onLightPut());
-        this.$set = set.attach({
-            style: [Field.TSTL, 'uint'],
-            paint: [Field.THMS, 'uint', x => this.palette[x]],
-        }, this, () => this.$onLightPut());
+        this.$set = set.attach({style: [Field.TSTL, 'uint']}, this, () => this.$onLightPut());
     }
 
     $onLightPut() {
@@ -223,7 +207,6 @@ class IBusThemeManager extends Mortal {
         let dark = this.style === Style.AUTO ? this.night
             : this.style === Style.SYSTEM ? this.scheme : this.style === Style.DARK;
         this.$updateStyle(dark);
-        this.$updateColor(dark);
     }
 
     $updateStyle(dark) {
@@ -232,21 +215,12 @@ class IBusThemeManager extends Mortal {
         else IBusPopup.remove_style_class_name('night');
     }
 
-    $updateColor(dark) {
-        let color = dark ? `night-${this.paint}` : this.paint;
-        if(this.color === color) return;
-        if(this.color) IBusPopup.remove_style_class_name(this.color);
-        IBusPopup.add_style_class_name(this.color = color);
-    }
-
     $replaceStyle() {
-        this.palette = ['red', 'green', 'orange', 'blue', 'purple', 'turquoise', 'grey'];
         syncStyleClass(IBusPopup, PopupStyleClass, x => x.replace(/candidate/g, 'ibus-tweaker-candidate'));
     }
 
     $restoreStyle() {
         if(this.dark) IBusPopup.remove_style_class_name('night');
-        if(this.color) IBusPopup.remove_style_class_name(this.color);
         syncStyleClass(IBusPopup, PopupStyleClass);
     }
 }
@@ -301,7 +275,7 @@ class IBusClipArea extends St.BoxLayout {
     }
 
     setCandidates(indexes, candidates, cursorPosition, cursorVisible) {
-        for(let i = 0; i < Indices.length; ++i) {
+        for(let i = 0, n = Indices.length; i < n; ++i) {
             let visible = i < candidates.length;
             let box = this._candidateBoxes[i];
             box.visible = visible;
@@ -309,7 +283,6 @@ class IBusClipArea extends St.BoxLayout {
             box._indexLabel.text = indexes && indexes[i] ? indexes[i] : Indices[i];
             box._candidateLabel.text = candidates[i];
         }
-
         this._candidateBoxes[this._cursorPosition].remove_style_pseudo_class('selected');
         this._cursorPosition = cursorPosition;
         if(cursorVisible) this._candidateBoxes[cursorPosition].add_style_pseudo_class('selected');
@@ -397,17 +370,17 @@ class IBusClipHistory extends Mortal {
         this.$set = set;
         this.$src = Source.fuse({
             ptr: new Clutter.Actor({opacity: 0, x: 1, y: 1}), // workaround for the cursor jumping
-            pop: new Source(() => hook({'captured-event': this.$onCapture.bind(this)}, new IBusClipPopup(this.pageBtn, {
+            pop: new Source(() => hook({'captured-event': (...xs) => this.$onCapture(...xs)}, new IBusClipPopup(this.pageBtn, {
                 'cursor-up': () => this.setOffset(-1),
                 'cursor-down': () => this.setOffset(1),
                 'next-page': () => this.setOffset(this.pageSize),
-                'candidate-clicked': this.$onCandidateClick.bind(this),
+                'candidate-clicked': (...xs) => this.$onCandidateClick(...xs),
                 'previous-page': () => this.setOffset(-this.pageSize),
             }))),
             keys: Source.newKeys(this.$set.gset, Field.CKYS,  () => this.summon(), true),
             commit: Source.newTimer(x => [() => IBusManager._panelService?.commit_text(IBus.Text.new_from_string(x)), 30]),
         }, this);
-        connect(this, global.display.get_selection(), 'owner-changed', this.$onClipboardChange.bind(this));
+        connect(this, global.display.get_selection(), 'owner-changed', (...xs) => this.$onClipboardChange(...xs));
         Main.layoutManager.uiGroup.add_child(this.$src.ptr);
     }
 
@@ -424,9 +397,9 @@ class IBusClipHistory extends Mortal {
         this.lookup = [...ClipHist];
         this.preedit = '';
         this.setCursor(0);
-        let {x, y, width, height} = IBusPopup._dummyCursor;
+        let [x, y, w, h] = extent(IBusPopup._dummyCursor);
         this.$src.ptr.set_position(x, y);
-        this.$src.ptr.set_size(width, height);
+        this.$src.ptr.set_size(w, h);
         this.$src.pop.hub.summon(this.$src.ptr);
     }
 
@@ -539,14 +512,13 @@ class IBusClipHistory extends Mortal {
 class IBusTweaker extends Mortal {
     constructor(gset) {
         super();
-        IBusPopup._dummyCursor.set_position(1, 1); // HACK: workaround for popup jumping
+        IBusPopup._dummyCursor.set_position(1, 1); // HACK: workaround for the popup jumping
         syncStyleClass(PopupStyleClass, IBusPopup);
         let tweaks = {
             clip:   [Field.CLP,  IBusClipHistory],
             font:   [Field.FNT,  IBusFontSetting],
             input:  [Field.ATSW, IBusAutoSwitch],
-            orient: [Field.ORN,  IBusOrientation],
-            pgbtn:  [Field.PBTN, IBusPageButton],
+            page:   [Field.PBTN, IBusPageButton],
             theme:  [Field.THM,  IBusThemeManager],
         };
         this.$set = new Setting(null, gset, this);

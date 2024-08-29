@@ -28,12 +28,9 @@ class IBusTweakerPrefs extends Adw.PreferencesGroup {
             ATSW: new UI.Check(),
             DLG:  new UI.Check(),
             THM:  new UI.Check(),
-            ORN:  new UI.Check(),
             PBTN: new UI.Check(),
             CLPS: new UI.Spin(4, 10, 1, _('Page size')),
-            ORNS: new UI.Drop([_('Vertical'), _('Horizontal')]),
             TSTL: new UI.Drop([_('Auto'), _('Light'), _('Dark'), _('System')]),
-            THMS: new UI.Drop([_('Red'), _('Green'), _('Orange'), _('Blue'), _('Purple'), _('Turquoise'), _('Grey')]),
         }, gset);
         this.$blk.CKYS = new UI.Keys({gset, key: Field.CKYS});
         this.$blk.RKYS = new UI.Keys({gset, key: Field.RKYS});
@@ -48,8 +45,7 @@ class IBusTweakerPrefs extends Adw.PreferencesGroup {
             [this.$blk.PBTN, [_('Hide page buttons')]],
             [this.$blk.ATSW, [_('Autoswitch input mode')]],
             [this.$blk.DLG,  [_('Run dialog')], this.$blk.RKYS],
-            [this.$blk.ORN,  [_('Candidates orientation')], this.$blk.ORNS],
-            [this.$blk.THM,  [_('MS IME theme')], this.$blk.TSTL, this.$blk.THMS],
+            [this.$blk.THM,  [_('MS IME theme')], this.$blk.TSTL],
             [this.$blk.FNT,  [_('Use custom font')], this.$blk.FNTS],
             [this.$blk.CLP,  [_('Clipboard history')], this.$blk.CLPS, this.$blk.CKYS],
         ].forEach(xs => this.add(new UI.PrefRow(...xs)));

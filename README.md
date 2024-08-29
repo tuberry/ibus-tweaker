@@ -1,12 +1,8 @@
 # ibus-tweaker
 
-Tweaker of IBus in GNOME Shell for orientation, theme, font, input mode and clipboard history.
-> 狙公赋芧曰朝三而暮四。众狙皆怒。曰然则朝四而暮三。众狙皆悦。 —— *《庄子·齐物论》*<br>
+Tweaker of IBus in GNOME Shell for theme, font, input mode and clipboard history.
+> 狙公赋芧曰朝三而暮四。众狙皆怒。曰然则朝四而暮三。众狙皆悦。 —— *《庄子·齐物论》*\
 [![license]](/LICENSE.md)
-</br>
-
-![dj](https://user-images.githubusercontent.com/17917040/92872878-0e647800-f439-11ea-9c14-781b4d3191ed.gif)
-
 
 ## Installation
 
@@ -20,7 +16,7 @@ meson setup build && meson install -C build
 # meson setup build -Dtarget=system && meson install -C build # system-wide, default --prefix=/usr/local
 ```
 
-For older versions (< 44), it's recommended to install via:
+For older versions, it's recommended to install via:
 
 ### E.G.O
 
@@ -28,7 +24,7 @@ For older versions (< 44), it's recommended to install via:
 
 ## Features
 
-![itpref](https://user-images.githubusercontent.com/17917040/155883168-fb8140ba-1cf9-497e-818c-a298125a0133.png)
+![itpref](https://github.com/user-attachments/assets/fb5573ae-f1f9-44fd-a01d-f1fab5bcefda)
 
 **Clipboard history**:
 

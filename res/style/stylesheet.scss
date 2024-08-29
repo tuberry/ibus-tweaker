@@ -4,50 +4,32 @@ $variant: 'light';
 
 $pfx: 'ibus-tweaker-candidate';
 
-$hues: (
-'grey': 0,
-'blue': 0.6,
-'red': 0.95,
-'purple': 0.8,
-'green': 0.328,
-'orange': 0.047,
-'turquoise': 0.5,
-);
-$colors: ();
-@each $k, $v in $hues {
-    $s: if($k == 'grey', 0, 75%);
-    $colors: map-merge($colors, ($k: hsl($v * 360deg, $s, 80%)));
-    $colors: map-merge($colors, ("night-#{$k}": hsl($v * 360deg, $s, 40%)));
-}
-// @debug $colors;
-
 @mixin fgcolor($t: 0) {
-    color: transparentize($dark_5, $t);
-    .night & { color: transparentize($light_1, $t); }
+    color: st-transparentize($dark_5, $t);
+    .night & { color: st-transparentize($light_1, $t); }
 }
 
 @mixin color {
     @include fgcolor;
-    background-color: lighten($bg_color, 5%);
-    .night & { background-color: lighten($_dark_base_color, 5%); }
+    background-color: st-lighten($bg_color, 5%);
+    .night & { background-color: st-lighten($_dark_base_color, 5%); }
 }
 
 @mixin bgcolor {
-    @each $k, $v in $colors {
-        .#{$k} &:hover { background-color: transparentize($v, 0.6); }
-        .#{$k} &:selected { background-color: transparentize($v, 0.05); }
-    }
+    &:hover { background-color: st-transparentize(st-lighten(-st-accent-color, 20%), 0.6); }
+    .night &:hover { background-color: st-transparentize(st-darken(-st-accent-color, 10%), 0.6); }
+    &:selected { background-color: st-transparentize(st-lighten(-st-accent-color, 20%), 0.05); }
+    .night &:selected { background-color: st-transparentize(st-darken(-st-accent-color, 10%), 0.05); }
 }
 
 @mixin border {
-    @each $k, $v in $colors {
-        .#{$k} & { border-color: transparentize($v, 0.05); }
-    }
+    & { border-color: st-transparentize(st-lighten(-st-accent-color, 20%), 0.05); }
+    .night & { border-color: st-transparentize(st-darken(-st-accent-color, 10%), 0.05); }
 }
 
 .#{$pfx}-popup-boxpointer {
-    -arrow-background-color: transparent;
     -arrow-border-radius: 0.8125em;
+    -arrow-background-color: transparent;
 }
 
 .#{$pfx}-label {
