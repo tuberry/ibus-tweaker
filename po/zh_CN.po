@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: gnome-shell-extension-ibus-tweaker 35\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2024-08-29 02:27+0800\n"
+"POT-Creation-Date: 2024-08-30 12:55+0800\n"
 "PO-Revision-Date: 2021-08-18 14:09+0800\n"
 "Last-Translator: Automatically generated\n"
 "Language-Team: none\n"
@@ -62,28 +62,28 @@ msgid "System"
 msgstr "系统"
 
 #: src/prefs.js:45
-msgid "Hide page buttons"
-msgstr "隐藏页按钮"
+msgid "_Hide page buttons"
+msgstr "隐藏页按钮(_H)"
 
 #: src/prefs.js:46
-msgid "Autoswitch input mode"
-msgstr "中英文切换"
+msgid "_Autoswitch input mode"
+msgstr "中英文切换(_A)"
 
 #: src/prefs.js:47
-msgid "Run dialog"
-msgstr "运行命令框"
+msgid "_Run dialog"
+msgstr "运行命令框(_R)"
 
 #: src/prefs.js:48
-msgid "MS IME theme"
-msgstr "仿微软主题"
+msgid "_MS IME theme"
+msgstr "仿微软主题(_M)"
 
 #: src/prefs.js:49
-msgid "Use custom font"
-msgstr "自定义字体"
+msgid "_Use custom font"
+msgstr "自定义字体(_U)"
 
 #: src/prefs.js:50
-msgid "Clipboard history"
-msgstr "剪贴板历史"
+msgid "_Clipboard history"
+msgstr "剪贴板历史(_C)"
 
 #: src/extension.js:346
 msgid "📋："

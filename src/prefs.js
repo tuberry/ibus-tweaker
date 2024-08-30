@@ -42,12 +42,12 @@ class IBusTweakerPrefs extends Adw.PreferencesGroup {
 
     $buildUI() {
         [
-            [this.$blk.PBTN, [_('Hide page buttons')]],
-            [this.$blk.ATSW, [_('Autoswitch input mode')]],
-            [this.$blk.DLG,  [_('Run dialog')], this.$blk.RKYS],
-            [this.$blk.THM,  [_('MS IME theme')], this.$blk.TSTL],
-            [this.$blk.FNT,  [_('Use custom font')], this.$blk.FNTS],
-            [this.$blk.CLP,  [_('Clipboard history')], this.$blk.CLPS, this.$blk.CKYS],
+            [this.$blk.PBTN, [_('_Hide page buttons')]],
+            [this.$blk.ATSW, [_('_Autoswitch input mode')]],
+            [this.$blk.DLG,  [_('_Run dialog')], this.$blk.RKYS],
+            [this.$blk.THM,  [_('_MS IME theme')], this.$blk.TSTL],
+            [this.$blk.FNT,  [_('_Use custom font')], this.$blk.FNTS],
+            [this.$blk.CLP,  [_('_Clipboard history')], this.$blk.CLPS, this.$blk.CKYS],
         ].forEach(xs => this.add(new UI.PrefRow(...xs)));
     }
 }

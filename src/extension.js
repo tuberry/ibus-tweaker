@@ -14,7 +14,7 @@ import * as BoxPointer from 'resource:///org/gnome/shell/ui/boxpointer.js';
 
 import {Field} from './const.js';
 import {str2py} from './pinyin.js';
-import {noop, hook, id as echo, has, vmap, Y} from './util.js';
+import {hook, id as echo, has, vmap, Y} from './util.js';
 import {Setting, Extension, Mortal, Source, paste, connect, extent, _} from './fubar.js';
 
 const InputManager = Main.panel.statusArea.keyboard._inputSourceManager;
