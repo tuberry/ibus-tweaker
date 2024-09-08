@@ -1,30 +1,35 @@
 $variant: 'light';
+$contrast: 'normal';
 
 @import 'gnome-shell-sass/_colors';
 
 $pfx: 'ibus-tweaker-candidate';
 
+$bdw: 0.05em;
+$ltr: 24%;
+$dkr: 4%;
+
 @mixin fgcolor($t: 0) {
-    color: st-transparentize($dark_5, $t);
-    .night & { color: st-transparentize($light_1, $t); }
+    color: transparentize($dark_5, $t);
+    .night & { color: transparentize($light_1, $t); }
 }
 
 @mixin color {
     @include fgcolor;
-    background-color: st-lighten($bg_color, 5%);
-    .night & { background-color: st-lighten($_dark_base_color, 5%); }
+    background-color: lighten($bg_color, $dkr);
+    .night & { background-color: lighten($_base_color_dark, $dkr); }
 }
 
 @mixin bgcolor {
-    &:hover { background-color: st-transparentize(st-lighten(-st-accent-color, 20%), 0.6); }
-    .night &:hover { background-color: st-transparentize(st-darken(-st-accent-color, 10%), 0.6); }
-    &:selected { background-color: st-transparentize(st-lighten(-st-accent-color, 20%), 0.05); }
-    .night &:selected { background-color: st-transparentize(st-darken(-st-accent-color, 10%), 0.05); }
+    &:hover { background-color: st-transparentize(st-lighten(-st-accent-color, $ltr), 0.6); }
+    .night &:hover { background-color: st-transparentize(st-darken(-st-accent-color, $dkr), 0.6); }
+    &:selected { background-color: st-transparentize(st-lighten(-st-accent-color, $ltr), 0.05); }
+    .night &:selected { background-color: st-transparentize(st-darken(-st-accent-color, $dkr), 0.05); }
 }
 
 @mixin border {
-    & { border-color: st-transparentize(st-lighten(-st-accent-color, 20%), 0.05); }
-    .night & { border-color: st-transparentize(st-darken(-st-accent-color, 10%), 0.05); }
+    & { border-color: st-transparentize(st-lighten(-st-accent-color, $ltr), 0.05); }
+    .night & { border-color: st-transparentize(st-darken(-st-accent-color, $dkr), 0.05); }
 }
 
 .#{$pfx}-popup-boxpointer {
@@ -43,8 +48,8 @@ $pfx: 'ibus-tweaker-candidate';
 
 .#{$pfx}-page-button-box {
     @include border;
-    .vertical & { padding-top: 0; border-top-width: 1px; }
-    .horizontal & { padding-left: 0; border-left-width: 1px; }
+    .vertical & { padding-top: 0; border-top-width: $bdw; }
+    .horizontal & { padding-left: 0; border-left-width: $bdw; }
 }
 
 .#{$pfx}-popup-content {
@@ -53,7 +58,7 @@ $pfx: 'ibus-tweaker-candidate';
     @include bgcolor;
     padding: 0;
     margin: 0.3em;
-    border-width: 1px;
+    border-width: $bdw;
     border-radius: 0.2em;
 }
 
@@ -61,7 +66,7 @@ $pfx: 'ibus-tweaker-candidate';
     @include border;
     padding: 0;
     border-width: 0;
-    border-bottom-width: 1px;
+    border-bottom-width: $bdw;
 }
 
 .#{$pfx}-box {

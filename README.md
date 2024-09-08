@@ -11,7 +11,7 @@ Tweaker of IBus in GNOME Shell for theme, font, input mode and clipboard history
 The latest and supported version should only work on the most current stable version of GNOME Shell.
 
 ```bash
-git clone --recurse-submodules https://github.com/tuberry/ibus-tweaker.git && cd ibus-tweaker
+git clone https://github.com/tuberry/ibus-tweaker.git && cd ibus-tweaker
 meson setup build && meson install -C build
 # meson setup build -Dtarget=system && meson install -C build # system-wide, default --prefix=/usr/local
 ```
