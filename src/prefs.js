@@ -16,12 +16,12 @@ class IBusTweakerPrefs extends Adw.PreferencesGroup {
 
     constructor(gset) {
         super();
-        this.$buildWidgets(gset);
-        this.$buildUI();
+        this.#buildWidgets(gset);
+        this.#buildUI();
     }
 
-    $buildWidgets(gset) {
-        this.$blk = UI.block({
+    #buildWidgets(gset) {
+        this.$blk = UI.tie({
             FNTS: new UI.Font(),
             CLP:  new UI.Check(),
             FNT:  new UI.Check(),
@@ -30,7 +30,7 @@ class IBusTweakerPrefs extends Adw.PreferencesGroup {
             THM:  new UI.Check(),
             PBTN: new UI.Check(),
             CLPS: new UI.Spin(4, 10, 1, _('Page size')),
-            TSTL: new UI.Drop([_('Auto'), _('Light'), _('Dark'), _('System')]),
+            TSTL: new UI.Drop([_('System'), _('Auto'), _('Light'), _('Dark')]),
         }, gset);
         this.$blk.CKYS = new UI.Keys({gset, key: Field.CKYS});
         this.$blk.RKYS = new UI.Keys({gset, key: Field.RKYS});
@@ -40,16 +40,16 @@ class IBusTweakerPrefs extends Adw.PreferencesGroup {
         this.$blk.DLG.set_sensitive(this.$blk.ATSW.active);
     }
 
-    $buildUI() {
-        [
+    #buildUI() {
+        UI.addActRows([
             [this.$blk.PBTN, [_('_Hide page buttons')]],
             [this.$blk.ATSW, [_('_Autoswitch input mode')]],
             [this.$blk.DLG,  [_('_Run dialog')], this.$blk.RKYS],
             [this.$blk.THM,  [_('_MS IME theme')], this.$blk.TSTL],
             [this.$blk.FNT,  [_('_Use custom font')], this.$blk.FNTS],
             [this.$blk.CLP,  [_('_Clipboard history')], this.$blk.CLPS, this.$blk.CKYS],
-        ].forEach(xs => this.add(new UI.PrefRow(...xs)));
+        ], this);
     }
 }
 
-export default class PrefsWidget extends UI.Prefs { $klass = IBusTweakerPrefs; }
+export default class Prefs extends UI.Prefs { $klass = IBusTweakerPrefs; }

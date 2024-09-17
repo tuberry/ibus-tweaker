@@ -33,7 +33,7 @@
     <key type="u" name="default-variant">
         <default>0</default>
         <range min="0" max="3"/>
-        <summary>default color vatiant(0 - auto, 1 - light, 2 - dark, 3 - system)</summary>
+        <summary>default color vatiant(0 - system, 1 - light, 2 - dark, 3 - auto)</summary>
     </key>
     <key type="a{s(ss)}" name="input-modes">
         <default>[]</default>

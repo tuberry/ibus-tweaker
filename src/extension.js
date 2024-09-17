@@ -14,16 +14,17 @@ import * as BoxPointer from 'resource:///org/gnome/shell/ui/boxpointer.js';
 
 import {Field} from './const.js';
 import {str2py} from './pinyin.js';
-import {hook, id as echo, has, vmap, Y} from './util.js';
-import {Setting, Extension, Mortal, Source, paste, connect, extent, _} from './fubar.js';
+import * as Util from './util.js';
+import * as Fubar from './fubar.js';
 
+const {_}  = Fubar;
 const InputManager = Main.panel.statusArea.keyboard._inputSourceManager;
 const IBusManager = InputManager._ibusManager;
 const IBusPopup = IBusManager._candidatePopup;
 const IBusArea = IBusPopup._candidateArea;
 
 const ClipHist = [];
-const Style = {AUTO: 0, LIGHT: 1, DARK: 2, SYSTEM: 3};
+const Style = {SYSTEM: 0, LIGHT: 1, DARK: 2, AUTO: 3};
 const Indices = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'];
 const PopupStyleClass = {
     styleClass: '',
@@ -45,41 +46,29 @@ const PopupStyleClass = {
 const ellipsize = (s, l = 20) => s.length > 2 * l ? `${s.slice(0, l)}\u2026${s.slice(-l)}` : s;
 const visibilize = (s, t = [[/\n|\r/g, '\u21b5'], ['\t', '\u21e5']]) => t.reduce((p, x) => p.replaceAll(...x), s);
 
-function syncStyleClass(aim, src, func = echo, obj = PopupStyleClass) {
-    return Y(f => (a, b, c) => Object.keys(c).forEach(k => c[k] instanceof Object
+function syncStyleClass(aim, src, func = Util.id, obj = PopupStyleClass) {
+    return Util.Y(f => (a, b, c) => Object.keys(c).forEach(k => c[k] instanceof Object
         ? a[k] && f(a[k], b[k], c[k]) : k === 'styleClass' && (a[k] = func(b[k]))))(aim, src, obj);
 }
 
-function fuzzySearch(needle, haystack) {
-    // Ref: https://github.com/bevacqua/fuzzysearch
-    if(needle.length > haystack.length) return false;
-    if(needle.length === haystack.length) return needle === haystack;
-    outer: for(let i = 0, j = 0; i < needle.length; i++) {
-        while(j < haystack.length) if(haystack[j++] === needle[i]) continue outer;
-        return false;
-    }
-    return true;
-}
-
-class IBusAutoSwitch extends Mortal {
+class IBusAutoSwitch extends Fubar.Mortal {
     constructor(set) {
         super();
-        this.$buildWidgets(set);
-        this.$bindSettings();
+        this.#bindSettings(set);
+        this.#buildWidgets();
     }
 
-    $buildWidgets(set) {
-        this.$set = set;
-        connect(this, global.display, 'notify::focus-window', () => this.toggleInputMode(),
-            Main.overview, 'hidden', () => this.setEmpty(), 'shown', () => this.setEmpty('#overview'));
-        this.$src = Source.fuse({keys: Source.newKeys(this.$set.gset, Field.RKYS, () => this.openRunDialog())}, this);
-    }
-
-    $bindSettings() {
-        this.$set.attach({
-            modes: [Field.IPMS, 'value',   x => { this.$modes ??= new Map(Object.entries(x.recursiveUnpack())); }],
-            keys:  [Field.DLG,  'boolean', x => this.$src.keys.toggle(x)],
+    #bindSettings(set) {
+        this.$set = set.attach({
+            keys:  [Field.DLG,  'boolean', null, x => this.$src.keys.toggle(x)],
+            modes: [Field.IPMS, 'value', x => new Map(Object.entries(x.recursiveUnpack())), null, true],
         }, this);
+    }
+
+    #buildWidgets() {
+        Fubar.connect(this, global.display, 'notify::focus-window', () => this.toggleInputMode(),
+            Main.overview, 'hidden', () => this.setEmpty(), 'shown', () => this.setEmpty('#overview'));
+        this.$src = Fubar.Source.tie({keys: Fubar.Source.newKeys(this.$set.hub, Field.RKYS, () => this.openRunDialog(), this.keys)}, this);
     }
 
     *enumerateProps(props) {
@@ -119,14 +108,14 @@ class IBusAutoSwitch extends Mortal {
     }
 
     saveInputMode(win, id, mode) {
-        this.$modes.set(win, [id, mode]);
-        this.$set.set('modes',  new GLib.Variant('a{s(ss)}', Object.fromEntries(this.$modes)), this);
+        this.modes.set(win, [id, mode]);
+        this.$set.set('modes', new GLib.Variant('a{s(ss)}', Object.fromEntries(this.modes)), this);
     }
 
     checkInputMode(win, id, mode) {
         if(!win) return false;
-        if(!this.$modes.has(win)) this.saveInputMode(win, id, mode);
-        [this.id, this.mode] = this.$modes.get(win);
+        if(!this.modes.has(win)) this.saveInputMode(win, id, mode);
+        [this.id, this.mode] = this.modes.get(win);
         return this.id !== id || this.mode !== mode;
     }
 
@@ -143,36 +132,36 @@ class IBusAutoSwitch extends Mortal {
             Main.openRunDialog();
         } else {
             Main.openRunDialog();
-            connect(this, Main.runDialog, 'notify::visible', () => this.setEmpty(Main.runDialog.visible && '#run-dialog'));
+            Fubar.connect(this, Main.runDialog, 'notify::visible', () => this.setEmpty(Main.runDialog.visible && '#run-dialog'));
             this.setEmpty('#run-dialog');
             this.dialogInited = true;
         }
     }
 }
 
-class IBusFontSetting extends Mortal {
+class IBusFontSetting extends Fubar.Mortal {
     constructor(set) {
         super();
         let style = IBusPopup.get_style();
-        this.$src = Source.fuse({
-            font: new Source(x => {
-                let desc = Pango.FontDescription.from_string(x);
-                let getWeight = () => { try { return desc.get_weight(); } catch(e) { return parseInt(e.message); } }; // HACK: workaround for Pango.Weight enumeration exception (eg: 290)
-                IBusPopup.set_style(`font-weight: ${getWeight()};
-                             font-family: "${desc.get_family()}";
-                             font-style: ${Object.keys(Pango.Style)[desc.get_style()].toLowerCase()};
-                             font-size: ${desc.get_size() / Pango.SCALE}${desc.get_size_is_absolute() ? 'px' : 'pt'};`);
-            }, () => IBusPopup.set_style(style)),
-        }, this);
-        this.$set = set.attach({fontName: [Field.FNTS, 'string', x => this.$src.font.summon(x)]}, this);
+        this.$set = set.attach({fontName: [Field.FNTS, 'string', null, x => this.$src.font.summon(x)]}, this);
+        this.$src = Fubar.Source.tie({font: new Fubar.Source(() => this.#setup(), () => IBusPopup.set_style(style), true)}, this);
+    }
+
+    #setup() {
+        let desc = Pango.FontDescription.from_string(this.fontName);
+        let weight = Fubar.essay(() => desc.get_weight(), e => parseInt(e.message)); // HACK: workaround for Pango.Weight enumeration exception (eg: 290)
+        IBusPopup.set_style(`font-weight: ${weight};
+ font-family: "${desc.get_family()}";
+ font-style: ${Object.keys(Pango.Style)[desc.get_style()].toLowerCase()};
+ font-size: ${desc.get_size() / Pango.SCALE}${desc.get_size_is_absolute() ? 'px' : 'pt'};`);
     }
 }
 
-class IBusPageButton extends Mortal {
+class IBusPageButton extends Fubar.Mortal {
     constructor() {
         super();
-        Source.fuse({
-            page: new Source(() => {
+        Fubar.Source.tie({
+            page: new Fubar.Source(() => {
                 IBusArea._buttonBox.set_style('border-width: 0;');
                 IBusArea._previousButton.hide();
                 IBusArea._nextButton.hide();
@@ -185,41 +174,43 @@ class IBusPageButton extends Mortal {
     }
 }
 
-class IBusThemeManager extends Mortal {
+class IBusThemeManager extends Fubar.Mortal {
     constructor(set) {
         super();
-        this.$src = Source.fuse({
-            light: Source.newLight(x => { this.night = x; this.$onLightPut(); }, true),
-            style: new Source(() => this.$replaceStyle(), () => this.$restoreStyle(), true),
+        this.#bindSettings(set);
+        this.#buildSources();
+    }
+
+    #bindSettings(set) {
+        this.$set = set.attach({style: [Field.TSTL, 'uint', null, () => this.#onLightOn()]}, this);
+        this.$setIf = new Fubar.Setting('org.gnome.desktop.interface', {
+            scheme: ['color-scheme', 'string', x => x === 'prefer-dark', () => this.#onLightOn()],
         }, this);
-        this.$bindSettings(set);
     }
 
-    $bindSettings(set) {
-        this.$setIf = new Setting({
-            scheme: ['color-scheme', 'string', x => x === 'prefer-dark'],
-        }, 'org.gnome.desktop.interface', this, () => this.$onLightPut());
-        this.$set = set.attach({style: [Field.TSTL, 'uint']}, this, () => this.$onLightPut());
+    #buildSources() {
+        let style = new Fubar.Source(() => this.#replaceStyle(), () => this.#restoreStyle(), true);
+        let light = Fubar.Source.newLight(x => { this.night = x; this.#onLightOn(); }, true);
+        this.$src = Fubar.Source.tie({style, light}, this);
     }
 
-    $onLightPut() {
-        if(!has(this, 'night')) return;
+    #onLightOn() {
         let dark = this.style === Style.AUTO ? this.night
             : this.style === Style.SYSTEM ? this.scheme : this.style === Style.DARK;
-        this.$updateStyle(dark);
+        this.#updateStyle(dark);
     }
 
-    $updateStyle(dark) {
+    #updateStyle(dark) {
         if(this.dark === dark) return;
         if((this.dark = dark)) IBusPopup.add_style_class_name('night');
         else IBusPopup.remove_style_class_name('night');
     }
 
-    $replaceStyle() {
+    #replaceStyle() {
         syncStyleClass(IBusPopup, PopupStyleClass, x => x.replace(/candidate/g, 'ibus-tweaker-candidate'));
     }
 
-    $restoreStyle() {
+    #restoreStyle() {
         if(this.dark) IBusPopup.remove_style_class_name('night');
         syncStyleClass(IBusPopup, PopupStyleClass);
     }
@@ -243,12 +234,9 @@ class IBusClipArea extends St.BoxLayout {
         super({vertical: true, reactive: true, visible: false});
         this.add_style_class_name('vertical');
         this._candidateBoxes = [];
-        let onClick = i => (_a, event) => {
-            this.emit('candidate-clicked', i, event.get_button(), event.get_state());
-            return Clutter.EVENT_PROPAGATE;
-        };
+        let click = i => (_a, e) => this.emit('candidate-clicked', i, e.get_button(), e.get_state());
         Indices.forEach((_x, i) => {
-            let box = hook({'button-release-event': onClick(i)}, new St.BoxLayout({reactive: true, trackHover: true}));
+            let box = Util.hook({'button-release-event': click(i)}, new St.BoxLayout({reactive: true, trackHover: true}));
             box._indexLabel = new St.Label();
             box.add_child(box._indexLabel);
             box._candidateLabel = new St.Label();
@@ -257,9 +245,9 @@ class IBusClipArea extends St.BoxLayout {
             this.add_child(box);
         });
         this._buttonBox = new St.BoxLayout();
-        this._previousButton = hook({clicked: () => this.emit('previous-page')}, new St.Button({xExpand: true, iconName: 'go-up-symbolic'}));
+        this._previousButton = Util.hook({clicked: () => this.emit('previous-page')}, new St.Button({xExpand: true, iconName: 'go-up-symbolic'}));
         this._buttonBox.add_child(this._previousButton);
-        this._nextButton = hook({clicked: () => this.emit('next-page')}, new St.Button({xExpand: true, iconName: 'go-down-symbolic'}));
+        this._nextButton = Util.hook({clicked: () => this.emit('next-page')}, new St.Button({xExpand: true, iconName: 'go-down-symbolic'}));
         this._buttonBox.add_child(this._nextButton);
         this.add_child(this._buttonBox);
         this._orientation = -1;
@@ -275,14 +263,12 @@ class IBusClipArea extends St.BoxLayout {
     }
 
     setCandidates(indexes, candidates, cursorPosition, cursorVisible) {
-        for(let i = 0, n = Indices.length; i < n; ++i) {
-            let visible = i < candidates.length;
+        Indices.forEach((x, i) => {
             let box = this._candidateBoxes[i];
-            box.visible = visible;
-            if(!visible) continue;
-            box._indexLabel.text = indexes && indexes[i] ? indexes[i] : Indices[i];
+            if(!(box.visible = i < candidates.length)) return;
+            box._indexLabel.text = indexes && indexes[i] ? indexes[i] : x;
             box._candidateLabel.text = candidates[i];
-        }
+        });
         this._candidateBoxes[this._cursorPosition].remove_style_pseudo_class('selected');
         this._cursorPosition = cursorPosition;
         if(cursorVisible) this._candidateBoxes[cursorPosition].add_style_pseudo_class('selected');
@@ -307,13 +293,13 @@ class IBusClipPopup extends BoxPointer.BoxPointer {
     constructor(pageBtn, hooks) {
         super(St.Side.TOP);
         this.set({visible: false, reactive: true});
-        this.$buildWidgets(pageBtn, hooks);
+        this.#buildWidgets(pageBtn, hooks);
         Main.layoutManager.addChrome(this);
         global.focusManager.add_group(this);
         global.stage.set_key_focus(this);
     }
 
-    $buildWidgets(pageBtn, hooks) {
+    #buildWidgets(pageBtn, hooks) {
         let box = new St.BoxLayout({vertical: true});
         this.bin.set_child(box);
         let hbox = new St.BoxLayout();
@@ -321,12 +307,12 @@ class IBusClipPopup extends BoxPointer.BoxPointer {
         this._preeditText = new St.Label({visible: true, x_expand: true});
         this._auxText = new St.Label({visible: true});
         [this._preeditText, this._auxText].forEach(x => hbox.add_child(x));
-        this._candidateArea = hook(hooks, new IBusClipArea());
+        this._candidateArea = Util.hook(hooks, new IBusClipArea());
         box.add_child(this._candidateArea);
-        this.$replaceStyle(pageBtn);
+        this.#replaceStyle(pageBtn);
     }
 
-    $replaceStyle(pageBtn) {
+    #replaceStyle(pageBtn) {
         syncStyleClass(this, IBusPopup);
         this.set_style(IBusPopup.get_style());
         let [box] = IBusPopup._candidateArea._candidateBoxes,
@@ -359,36 +345,37 @@ class IBusClipPopup extends BoxPointer.BoxPointer {
     }
 }
 
-class IBusClipHistory extends Mortal {
+class IBusClipHistory extends Fubar.Mortal {
     constructor(set) {
         super();
-        this.$buildWidgets(set);
-        this.$bindSettings();
+        this.#bindSettings(set);
+        this.#buildSources();
+        this.#buildWidgets();
     }
 
-    $buildWidgets(set) {
-        this.$set = set;
-        this.$src = Source.fuse({
-            ptr: new Clutter.Actor({opacity: 0, x: 1, y: 1}), // workaround for the cursor jumping
-            pop: new Source(() => hook({'captured-event': (...xs) => this.$onCapture(...xs)}, new IBusClipPopup(this.pageBtn, {
+    #bindSettings(set) {
+        this.$set = set.attach({pageSize: [Field.CLPS, 'uint'], pageBtn: [Field.PBTN, 'boolean']}, this);
+    }
+
+    #buildSources() {
+        let ptr = new Clutter.Actor({opacity: 0, x: 1, y: 1}), // workaround for the cursor jumping
+            pop = new Fubar.Source(() => Util.hook({
+                'captured-event': (...xs) => this.#onCapture(...xs),
+            }, new IBusClipPopup(this.pageBtn, {
                 'cursor-up': () => this.setOffset(-1),
                 'cursor-down': () => this.setOffset(1),
                 'next-page': () => this.setOffset(this.pageSize),
-                'candidate-clicked': (...xs) => this.$onCandidateClick(...xs),
                 'previous-page': () => this.setOffset(-this.pageSize),
+                'candidate-clicked': (...xs) => this.#onCandidateClick(...xs),
             }))),
-            keys: Source.newKeys(this.$set.gset, Field.CKYS,  () => this.summon(), true),
-            commit: Source.newTimer(x => [() => IBusManager._panelService?.commit_text(IBus.Text.new_from_string(x)), 30]),
-        }, this);
-        connect(this, global.display.get_selection(), 'owner-changed', (...xs) => this.$onClipboardChange(...xs));
-        Main.layoutManager.uiGroup.add_child(this.$src.ptr);
+            keys = Fubar.Source.newKeys(this.$set.hub, Field.CKYS,  () => this.summon(), true),
+            commit = Fubar.Source.newTimer(x => [() => IBusManager._panelService?.commit_text(IBus.Text.new_from_string(x)), 30]);
+        this.$src = Fubar.Source.tie({ptr, pop, keys, commit}, this);
     }
 
-    $bindSettings() {
-        this.$set.attach({
-            pageSize: [Field.CLPS, 'uint'],
-            pageBtn:  [Field.PBTN, 'boolean'],
-        }, this);
+    #buildWidgets() {
+        Fubar.connect(this, global.display.get_selection(), 'owner-changed', (...xs) => this.$onClipboardChange(...xs));
+        Main.layoutManager.uiGroup.add_child(this.$src.ptr);
     }
 
     summon() {
@@ -397,15 +384,14 @@ class IBusClipHistory extends Mortal {
         this.lookup = [...ClipHist];
         this.preedit = '';
         this.setCursor(0);
-        let [x, y, w, h] = extent(IBusPopup._dummyCursor);
-        this.$src.ptr.set_position(x, y);
-        this.$src.ptr.set_size(w, h);
+        this.$src.ptr.set_position(...IBusPopup._dummyCursor.get_transformed_position());
+        this.$src.ptr.set_size(...IBusPopup._dummyCursor.get_transformed_size());
         this.$src.pop.hub.summon(this.$src.ptr);
     }
 
     async $onClipboardChange(_s, type) {
         if(type !== St.ClipboardType.CLIPBOARD) return;
-        let text = await paste();
+        let text = await Fubar.paste();
         let index = ClipHist.findIndex(x => x[0] === text);
         if(index < 0) {
             ClipHist.unshift([text, visibilize(ellipsize(text)), str2py(text.toLowerCase())]);
@@ -415,7 +401,7 @@ class IBusClipHistory extends Mortal {
         }
     }
 
-    $onCapture(actor, event) {
+    #onCapture(actor, event) {
         let type = event.type();
         if(type === Clutter.EventType.KEY_PRESS) {
             let key = event.get_key_symbol();
@@ -429,7 +415,7 @@ class IBusClipHistory extends Mortal {
             case Clutter.KEY_space:
             case Clutter.KEY_Return:
             case Clutter.KEY_KP_Enter:
-            case Clutter.KEY_ISO_Enter: this.$onCandidateClick(null, this.cursor - this.$start, 1, 0); break;
+            case Clutter.KEY_ISO_Enter: this.#onCandidateClick(null, this.cursor - this.$start, 1, 0); break;
             case Clutter.KEY_Delete:    this.deleteCurrent(); break;
             case Clutter.KEY_backslash: this.mergeCurrent(); break;
             case Clutter.KEY_BackSpace: this.setPreedit(this.preedit.slice(0, -1)); break;
@@ -471,7 +457,7 @@ class IBusClipHistory extends Mortal {
         pop.setPreedit(this.preedit);
     }
 
-    $onCandidateClick(_a, index) {
+    #onCandidateClick(_a, index) {
         this.$src.pop.dispel();
         this.$src.commit.revive(this.lookup[this.$start + index]?.at(0));
     }
@@ -498,33 +484,32 @@ class IBusClipHistory extends Mortal {
     selectAt(key) {
         let index = Indices.findIndex(x => x === key);
         if(index < 0 || index >= this.$size) this.$src.pop.dispel();
-        else this.$onCandidateClick(null, index, 1, 0);
+        else this.#onCandidateClick(null, index, 1, 0);
     }
 
     setPreedit(preedit) {
         if(this.preedit === preedit) return;
         this.preedit = preedit;
-        this.lookup = ClipHist.filter(x => fuzzySearch(this.preedit, x[2]));
+        this.lookup = ClipHist.filter(x => Util.search(this.preedit, x[2]));
         this.setCursor(0);
     }
 }
 
-class IBusTweaker extends Mortal {
+class IBusTweaker extends Fubar.Mortal {
     constructor(gset) {
         super();
         IBusPopup._dummyCursor.set_position(1, 1); // HACK: workaround for the popup jumping
         syncStyleClass(PopupStyleClass, IBusPopup);
         let tweaks = {
-            clip:   [Field.CLP,  IBusClipHistory],
-            font:   [Field.FNT,  IBusFontSetting],
-            input:  [Field.ATSW, IBusAutoSwitch],
-            page:   [Field.PBTN, IBusPageButton],
-            theme:  [Field.THM,  IBusThemeManager],
+            clip:  [Field.CLP,  IBusClipHistory],
+            font:  [Field.FNT,  IBusFontSetting],
+            input: [Field.ATSW, IBusAutoSwitch],
+            page:  [Field.PBTN, IBusPageButton],
+            theme: [Field.THM,  IBusThemeManager],
         };
-        this.$set = new Setting(null, gset, this);
-        this.$src = Source.fuse(vmap(tweaks, ([, klass]) => new Source(() => new klass(this.$set))), this);
-        this.$set.attach(vmap(tweaks, ([field]) => [field, 'boolean', (v, k) => this.$src[k].toggle(v)]), this);
+        this.$set = new Fubar.Setting(gset, Util.omap(tweaks, ([k, [field]]) => [[k, [field, 'boolean', null, x => this.$src[k].toggle(x)]]]), this);
+        this.$src = Fubar.Source.tie(Util.omap(tweaks, ([k, [, klass]]) => [[k, Fubar.Source.new(() => new klass(this.$set), this[k])]]), this);
     }
 }
 
-export default class MyExtension extends Extension { $klass = IBusTweaker; }
+export default class Extension extends Fubar.Extension { $klass = IBusTweaker; }

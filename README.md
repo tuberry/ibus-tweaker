@@ -34,11 +34,7 @@ https://user-images.githubusercontent.com/17917040/139533759-a5ebe54c-2fca-4006-
 
 ## Contributions
 
-Any contribution is welcome.
-
-### Ideas
-
-For any question or idea, feel free to open an issue or PR in the repo.
+Feel free to open an issue or PR in the repo for any question or idea.
 
 ### Translations
 
