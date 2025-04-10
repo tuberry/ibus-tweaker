@@ -1,86 +1,97 @@
-$variant: 'light';
+// SPDX-FileCopyrightText: tuberry
+// SPDX-License-Identifier: GPL-3.0-or-later
 $contrast: 'normal';
-
-@import 'gnome-shell-sass/_colors';
 
 $pfx: 'ibus-tweaker-candidate';
 
+$idx: 0.8;
+$pad: 0.2em;
 $bdw: 0.05em;
-$ltr: 24%;
-$dkr: 4%;
+$bdr: 0.24em;
+$bar: $bdr / 4;
+$ctt: $pad * 0.75;
 
-@mixin fgcolor($t: 0) {
-    color: transparentize($dark_5, $t);
-    .night & { color: transparentize($light_1, $t); }
+@mixin hover {
+  // color: $fg_color;
+  background-color: $hover_bg_color;
 }
 
 @mixin color {
-    @include fgcolor;
-    background-color: lighten($bg_color, $dkr);
-    .night & { background-color: lighten($_base_color_dark, $dkr); }
+  color: $fg_color;
+  background-color: $bg_color;
 }
 
-@mixin bgcolor {
-    &:hover { background-color: st-transparentize(st-lighten(-st-accent-color, $ltr), 0.6); }
-    .night &:hover { background-color: st-transparentize(st-darken(-st-accent-color, $dkr), 0.6); }
-    &:selected { background-color: st-transparentize(st-lighten(-st-accent-color, $ltr), 0.05); }
-    .night &:selected { background-color: st-transparentize(st-darken(-st-accent-color, $dkr), 0.05); }
-}
-
-@mixin border {
-    & { border-color: st-transparentize(st-lighten(-st-accent-color, $ltr), 0.05); }
-    .night & { border-color: st-transparentize(st-darken(-st-accent-color, $dkr), 0.05); }
-}
+$variant: 'light';
+@import 'gnome-shell-sass/_colors';
 
 .#{$pfx}-popup-boxpointer {
-    -arrow-border-radius: 0.8125em;
-    -arrow-background-color: transparent;
-}
-
-.#{$pfx}-label {
-    font-size: 1.25em;
-}
-
-.#{$pfx}-index {
-    @include fgcolor(0.4);
-    padding: 0.25em 0.25em 0 0;
-}
-
-.#{$pfx}-page-button-box {
-    @include border;
-    .vertical & { padding-top: 0; border-top-width: $bdw; }
-    .horizontal & { padding-left: 0; border-left-width: $bdw; }
+    // -arrow-rise: 0.5em;
+    -arrow-border-radius: $ctt + $bar + 0.49em * $idx; // index `1` width ~= 0.49em in 方正兰亭圆 font
 }
 
 .#{$pfx}-popup-content {
     @include color;
-    @include border;
-    @include bgcolor;
-    padding: 0;
-    margin: 0.3em;
-    border-width: $bdw;
-    border-radius: 0.2em;
-}
-
-.#{$pfx}-popup-text {
-    @include border;
-    padding: 0;
-    border-width: 0;
-    border-bottom-width: $bdw;
+    padding: $ctt;
+    border-radius: $bdr;
+    border: $bdw solid $outer_borders_color;
+    box-shadow: 0 $pad / 2 $pad 0 $shadow_color;
 }
 
 .#{$pfx}-box {
-    @include bgcolor;
-    padding: 0.5em;
-    border-radius: 0;
-    transition-duration: 100ms;
+    border-radius: $bdr;
+    padding: $pad $pad $pad 0;
+    & > .#{$pfx}-index {
+      font-size: 1em * $idx;
+      padding: 1em * (1 / $idx - 1) $pad 0 $pad;
+      border-width: 0;
+      border-radius: $bar / $idx;
+      border-left-width: $bdr / $idx;
+      border-color: transparent;
+      color: $insensitive_fg_color;
+    }
+    &:selected {
+      @include hover;
+      & > .#{$pfx}-index { border-color: -st-accent-color; }
+    }
+    &:hover { @include hover; }
+}
+
+.#{$pfx}-page-button-box {
+    spacing: $pad;
+    border-color: transparentize($fg_color, 0.7);
+    .vertical & { margin-top: $pad; padding-top: $pad; border-top-width: $bdw; }
+    .horizontal & { margin-left: $pad; padding-left: $pad; border-left-width: $bdw; }
 }
 
 .#{$pfx}-page-button {
+    padding: 0 !important;
+    max-height: 0 !important; // overwrite `button` style class
     @include color;
-    @include bgcolor;
-    padding: 0;
-    border-radius: 0.2em;
-    & StIcon { icon-size: 1.45em; }
-    &:insensitive { @include fgcolor(0.6); }
+    & StIcon { icon-size: 1em; }
+    &:hover { @include hover; }
+    &:insensitive { color: $insensitive_fg_color; }
+}
+
+$variant: 'dark';
+@import 'gnome-shell-sass/_colors';
+
+.night .#{$pfx}-popup-content {
+    @include color;
+    border-color: $outer_borders_color;
+    box-shadow-color: $shadow_color;
+}
+
+.night .#{$pfx}-box {
+    &:hover, &:selected { @include hover; }
+    & > .#{$pfx}-index { color: $insensitive_fg_color; }
+}
+
+.night .#{$pfx}-page-button-box {
+    border-color: transparentize($fg_color, 0.7);
+}
+
+.night .#{$pfx}-page-button {
+    @include color;
+    &:hover { @include hover; }
+    &:insensitive { color: $insensitive_fg_color; }
 }

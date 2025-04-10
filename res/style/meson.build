@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: tuberry
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 sheet = 'stylesheet.css'
 sassc = find_program('sassc', required: true)
 
@@ -6,5 +9,5 @@ custom_target(
   output: sheet,
   command: [sassc, '-t', 'expanded', '-a', '@INPUT@', '@OUTPUT@'],
   install: true,
-  install_dir: target_dir
+  install_dir: target_dir,
 )

@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist gettext-domain="@gettext@">
+  <schema id="@rdnn@" path="@path@">
+    <key type="b" name="enable-custom-font">
+      <default>false</default>
+      <summary>enable custom font</summary>
+    </key>
+    <key type="b" name="hide-page-button">
+      <default>true</default>
+      <summary>hide page button</summary>
+    </key>
+    <key type="b" name="enable-preset-theme">
+      <default>false</default>
+      <summary>enable preset theme</summary>
+    </key>
+    <key type="b" name="enable-auto-switch">
+      <default>true</default>
+      <summary>enable auto switch</summary>
+    </key>
+    <key type="b" name="enable-app-search">
+      <default>true</default>
+      <summary>enable slug app search</summary>
+    </key>
+    <key type="b" name="enable-clip-history">
+      <default>false</default>
+      <summary>enable clipboard history</summary>
+    </key>
+    <key type="u" name="clip-history-page-size">
+      <default>5</default>
+      <range min="4" max="10"/>
+      <summary>clipboard history candidates page size</summary>
+    </key>
+    <key type="u" name="preset-theme-style">
+      <default>0</default>
+      <range min="0" max="2"/>
+      <summary>preset theme style(0 - system, 1 - light, 2 - dark)</summary>
+    </key>
+    <key type="a{s(ss)}" name="input-modes">
+      <default>[]</default>
+      <summary>input mode list</summary>
+    </key>
+    <key type="s" name="custom-font">
+      <default>"Sans 14"</default>
+      <summary>custom font name</summary>
+    </key>
+    <key type="as" name="ibus-tweaker-clip-history">
+      <default><![CDATA[['<Super>semicolon']]]></default>
+      <summary>clip history shortcut</summary>
+    </key>
+  </schema>
+</schemalist>

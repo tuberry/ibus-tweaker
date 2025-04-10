@@ -17,86 +17,136 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 
-#: src/ui.js:343
-msgid "All"
-msgstr "全部"
-
-#: src/ui.js:343
-msgid "Normal"
-msgstr "常规"
-
-#: src/ui.js:343
-msgid "Symbolic"
-msgstr "符号"
-
-#: src/ui.js:382
-msgid "Clear"
-msgstr "清除"
-
-#: src/ui.js:480
+#: src/ui.js:384
 msgid "Mismatched filetype"
 msgstr "文件类型不匹配"
 
-#: src/ui.js:615
+#: src/ui.js:516
 msgid "Click or press ENTER to apply changes"
 msgstr "单击或按回车应用更改"
 
-#: src/prefs.js:32
+#: src/prefs.js:25
 msgid "Page size"
 msgstr "页面容量"
 
-#: src/prefs.js:33
+#: src/prefs.js:26
 msgid "System"
 msgstr "系统"
 
-#: src/prefs.js:33
-msgid "Auto"
-msgstr "自动"
-
-#: src/prefs.js:33
+#: src/prefs.js:26
 msgid "Light"
 msgstr "亮色"
 
-#: src/prefs.js:33
+#: src/prefs.js:26
 msgid "Dark"
 msgstr "暗色"
 
-#: src/prefs.js:45
+#: src/prefs.js:32
 msgid "_Hide page buttons"
 msgstr "隐藏页按钮(_H)"
 
-#: src/prefs.js:46
+#: src/prefs.js:33
 msgid "_Autoswitch input mode"
-msgstr "中英文切换(_A)"
+msgstr "切输入模式(_A)"
 
-#: src/prefs.js:47
-msgid "_Run dialog"
-msgstr "运行命令框(_R)"
+#: src/prefs.js:33
+msgid "Remember the input mode for each application"
+msgstr "记住每个应用的输入模式"
 
-#: src/prefs.js:48
-msgid "_MS IME theme"
-msgstr "仿微软主题(_M)"
+#: src/prefs.js:34
+msgid "_Slug app seacrh"
+msgstr "搜应用别名(_S)"
 
-#: src/prefs.js:49
-msgid "_Use custom font"
-msgstr "自定义字体(_U)"
+#: src/prefs.js:34
+msgid "Fallback search for localized apps in Romanized acronyms"
+msgstr "以罗马化缩写备选搜索本地化应用"
 
-#: src/prefs.js:50
-msgid "_Clipboard history"
-msgstr "剪贴板历史(_C)"
+#: src/prefs.js:35
+msgid "_Preset theme"
+msgstr "预定义主题(_P)"
 
-#: src/extension.js:332
+#: src/prefs.js:35
+msgid "Compact mode applicable mimetic theme"
+msgstr "单行模式适用的拟态主题"
+
+#: src/prefs.js:36
+msgid "_Custom font"
+msgstr "自定义字体(_C)"
+
+#: src/prefs.js:37
+msgid "C_lipboard history"
+msgstr "剪贴板历史(_L)"
+
+#: src/prefs.js:37
+msgid "Help"
+msgstr "帮助"
+
+#: src/prefs.js:38
+msgid "input digits"
+msgstr "输入数字"
+
+#: src/prefs.js:38
+msgid "numeric keypad"
+msgstr "小键盘"
+
+#: src/prefs.js:39
+msgid "merge entries"
+msgstr "合并条目"
+
+#: src/prefs.js:40
+msgid "delete current entry"
+msgstr "删除当前条目"
+
+#: src/prefs.js:41
+msgid "delete all entries"
+msgstr "删除所有条目"
+
+#: src/extension.js:224
 msgid "📋："
 msgstr "📋："
 
-#: src/extension.js:336
+#: src/extension.js:228
 #, javascript-format
 msgid "%dC"
 msgstr "%d字"
 
-#: src/extension.js:452
+#: src/extension.js:353
 msgid "Empty history."
 msgstr "空空如也。"
+
+#~ msgid "All"
+#~ msgstr "全部"
+
+#~ msgid "Normal"
+#~ msgstr "常规"
+
+#~ msgid "Symbolic"
+#~ msgstr "符号"
+
+#~ msgid "Auto"
+#~ msgstr "自动"
+
+#~ msgid ""
+#~ "<b>Tips</b>\n"
+#~ "use numeric keypad to input digits\n"
+#~ "press backslash key to merge entries\n"
+#~ "press DEL key to delete current entry\n"
+#~ "press Shift + DEL key to delete all entries"
+#~ msgstr ""
+#~ "<b>提示</b>\n"
+#~ "用小键盘输入数字\n"
+#~ "按反斜杠键合并条目\n"
+#~ "按删除键删除当前条目\n"
+#~ "按 Shift + 删除键删除所有条目"
+
+#~ msgid "_Run dialog"
+#~ msgstr "运行命令框(_R)"
+
+#~ msgid "_MS IME theme"
+#~ msgstr "仿微软主题(_M)"
+
+#~ msgid "Clear"
+#~ msgstr "清除"
 
 #~ msgid "Vertical"
 #~ msgstr "竖直"

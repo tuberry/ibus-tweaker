@@ -1,17 +1,16 @@
 // SPDX-FileCopyrightText: tuberry
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-export const Field = {
+export const Key = {
     FNTS: 'custom-font',
     IPMS: 'input-modes',
-    DLG:  'enable-dialog',
-    THM:  'enable-ms-theme',
-    TSTL: 'default-variant',
-    FNT:  'use-custom-font',
     PBTN: 'hide-page-button',
+    APP:  'enable-app-search',
     ATSW: 'enable-auto-switch',
+    FNT:  'enable-custom-font',
+    STL:  'preset-theme-style',
     CLP:  'enable-clip-history',
+    THM:  'enable-preset-theme',
     CLPS: 'clip-history-page-size',
-    RKYS: 'ibus-tweaker-run-dialog',
     CKYS: 'ibus-tweaker-clip-history',
 };

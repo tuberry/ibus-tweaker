@@ -1,55 +1,47 @@
 // SPDX-FileCopyrightText: tuberry
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-import Adw from 'gi://Adw';
-import GObject from 'gi://GObject';
-
 import * as UI from './ui.js';
-import {Field} from './const.js';
+import * as T from './util.js';
+import {Key as K} from './const.js';
 
 const {_} = UI;
 
-class IBusTweakerPrefs extends Adw.PreferencesGroup {
+class IBusTweakerPrefs extends UI.Page {
     static {
-        GObject.registerClass(this);
+        T.enrol(this);
     }
 
-    constructor(gset) {
-        super();
-        this.#buildWidgets(gset);
-        this.#buildUI();
+    $buildWidgets() {
+        return [
+            [K.CKYS, new UI.Keys()],
+            [K.FNTS, new UI.Font()],
+            [K.APP,  new UI.Check()],
+            [K.ATSW, new UI.Check()],
+            [K.CLP,  new UI.Check()],
+            [K.FNT,  new UI.Check()],
+            [K.PBTN, new UI.Check()],
+            [K.THM,  new UI.Check()],
+            [K.CLPS, new UI.Spin(4, 10, 1, _('Page size'))],
+            [K.STL,  new UI.Drop([_('System'), _('Light'), _('Dark')])],
+        ];
     }
 
-    #buildWidgets(gset) {
-        this.$blk = UI.tie({
-            FNTS: new UI.Font(),
-            CLP:  new UI.Check(),
-            FNT:  new UI.Check(),
-            ATSW: new UI.Check(),
-            DLG:  new UI.Check(),
-            THM:  new UI.Check(),
-            PBTN: new UI.Check(),
-            CLPS: new UI.Spin(4, 10, 1, _('Page size')),
-            TSTL: new UI.Drop([_('System'), _('Auto'), _('Light'), _('Dark')]),
-        }, gset);
-        this.$blk.CKYS = new UI.Keys({gset, key: Field.CKYS});
-        this.$blk.RKYS = new UI.Keys({gset, key: Field.RKYS});
-        this.$blk.ATSW.bind_property('active', this.$blk.DLG, 'sensitive', GObject.BindingFlags.DEFAULT);
-        this.$blk.ATSW.connect('notify::active', w => this.$blk.RKYS.set_sensitive(w.active && this.$blk.DLG.active));
-        this.$blk.RKYS.set_sensitive(this.$blk.ATSW.active && this.$blk.DLG.active);
-        this.$blk.DLG.set_sensitive(this.$blk.ATSW.active);
-    }
-
-    #buildUI() {
-        UI.addActRows([
-            [this.$blk.PBTN, [_('_Hide page buttons')]],
-            [this.$blk.ATSW, [_('_Autoswitch input mode')]],
-            [this.$blk.DLG,  [_('_Run dialog')], this.$blk.RKYS],
-            [this.$blk.THM,  [_('_MS IME theme')], this.$blk.TSTL],
-            [this.$blk.FNT,  [_('_Use custom font')], this.$blk.FNTS],
-            [this.$blk.CLP,  [_('_Clipboard history')], this.$blk.CLPS, this.$blk.CKYS],
-        ], this);
+    $buildUI() {
+        return [
+            [K.PBTN, [_('_Hide page buttons')]],
+            [K.ATSW, [_('_Autoswitch input mode'), _('Remember the input mode for each application')]],
+            [K.APP,  [_('_Slug app seacrh'), _('Fallback search for localized apps in Romanized acronyms')]],
+            [K.THM,  [_('_Preset theme'), _('Compact mode applicable mimetic theme')], K.STL],
+            [K.FNT,  [_('_Custom font')], K.FNTS],
+            [K.CLP,  [_('C_lipboard history')], new UI.Help(({h, k}) => [h(_('Help')), [
+                [_('input digits'), _('numeric keypad')],
+                [_('merge entries'), k('backslash')],
+                [_('delete current entry'), k('Delete')],
+                [_('delete all entries'), k('<shift>Delete')],
+            ]]), K.CLPS, K.CKYS],
+        ];
     }
 }
 
-export default class Prefs extends UI.Prefs { $klass = IBusTweakerPrefs; }
+export default class extends UI.Prefs { $klass = IBusTweakerPrefs; }
