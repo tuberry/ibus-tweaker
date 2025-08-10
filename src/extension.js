@@ -7,6 +7,7 @@ import IBus from 'gi://IBus';
 import Shell from 'gi://Shell';
 import Pango from 'gi://Pango';
 import Clutter from 'gi://Clutter';
+import GioUnix from 'gi://GioUnix';
 
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import * as AppDisplay from 'resource:///org/gnome/shell/ui/appDisplay.js';
@@ -18,6 +19,7 @@ import * as T from './util.js';
 import * as F from './fubar.js';
 import {Key as K} from './const.js';
 
+const {$, $$, $_} = T;
 const {_} = F;
 
 const InputManager = Main.panel.statusArea.keyboard._inputSourceManager;
@@ -31,7 +33,7 @@ const Indices = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'];
 const PopupStyleClass = {
     styleClass: '',
     _candidateArea: {
-        _candidateBoxes: Array(16).fill({
+        _candidateBoxes: (box => Array(16).fill(box))({
             styleClass: '',
             _indexLabel: {styleClass: ''},
             _candidateLabel: {styleClass: ''},
@@ -53,18 +55,16 @@ function syncStyleClass(aim, src, func = T.id, tpl = PopupStyleClass) {
         ? a[k] && f(a[k], b[k], c[k]) : k === 'styleClass' && (a[k] = func(b[k]))))(aim, src, tpl);
 }
 
-class IBusAutoSwitch extends F.Mortal {
+class InputMode extends F.Mortal {
     constructor(set) {
-        super();
-        this.#bindSettings(set);
-        this.#buildWidgets();
+        super()[$].$bindSettings(set).$buildWidgets();
     }
 
-    #bindSettings(set) {
+    $bindSettings(set) {
         this.$set = set.tie([[K.IPMS, x => new Map(Object.entries(x)), null, true]], this);
     }
 
-    #buildWidgets() {
+    $buildWidgets() {
         F.connect(this, global.display, 'notify::focus-window', () => this.toggleInputMode(),
             Main.overview, 'hidden', () => this.setDummy(), 'shown', () => this.setDummy('#overview'));
         this.$src = F.Source.tie({
@@ -78,12 +78,12 @@ class IBusAutoSwitch extends F.Mortal {
         }, this);
     }
 
-    *enumerateProps(props) {
+    *enumerateInputMode(props) {
         if(props) for(let p, i = 0; (p = props.get(i)); i++) if(p.key.startsWith('InputMode')) yield p;
     }
 
     getInputMode(props) {
-        for(let {propType, symbol, label, state, subProps, key} of this.enumerateProps(props)) {
+        for(let {propType, symbol, label, state, subProps, key} of this.enumerateInputMode(props)) {
             switch(propType) {
             case IBus.PropType.NORMAL: return symbol?.get_text() ?? label.get_text(); // ibus-libpinyin
             case IBus.PropType.TOGGLE: return state.toString(); // ibus-hangul
@@ -95,7 +95,7 @@ class IBusAutoSwitch extends F.Mortal {
     }
 
     setInputMode(props, mode) {
-        for(let {propType, key, state, subProps} of this.enumerateProps(props)) {
+        for(let {propType, key, state, subProps} of this.enumerateInputMode(props)) {
             switch(propType) {
             case IBus.PropType.NORMAL:
             case IBus.PropType.TOGGLE: return this.activate(key, !state);
@@ -110,8 +110,7 @@ class IBusAutoSwitch extends F.Mortal {
     }
 
     setDummy(dummy) {
-        this.$dummy = dummy;
-        this.toggleInputMode();
+        this[$].$dummy(dummy)[$].toggleInputMode();
     }
 
     saveInputMode(win, id, mode) {
@@ -135,7 +134,7 @@ class IBusAutoSwitch extends F.Mortal {
     }
 }
 
-class IBusFontSetting extends F.Mortal {
+class FontSetting extends F.Mortal {
     constructor(set) {
         super();
         let {style} = IBusPopup;
@@ -153,7 +152,7 @@ font-size: ${desc.get_size() / Pango.SCALE}${desc.get_size_is_absolute() ? 'px' 
     }
 }
 
-class IBusPageButton extends F.Mortal { // HACK: workaround for css without `display: none` support
+class PageButton extends F.Mortal { // HACK: workaround for css without `display: none` support
     constructor() {
         super();
         IBusArea._buttonBox.hide();
@@ -161,23 +160,19 @@ class IBusPageButton extends F.Mortal { // HACK: workaround for css without `dis
     }
 }
 
-class IBusPresetTheme extends F.Mortal {
+class PresetTheme extends F.Mortal {
     constructor(set) {
-        super();
-        this.#buildSources();
-        this.#bindSettings(set);
+        super()[$].$buildSources().$bindSettings(set);
     }
 
-    #buildSources() {
+    $buildSources() {
         this.$src = F.Source.tie({
-            style: new F.Source(() => syncStyleClass(IBusPopup, PopupStyleClass, x => x.replace(/candidate/g, 'ibus-tweaker-candidate')), () => {
-                if(this.dark) IBusPopup.remove_style_class_name('night');
-                syncStyleClass(IBusPopup, PopupStyleClass);
-            }, true),
+            style: new F.Source(() => syncStyleClass(IBusPopup, PopupStyleClass, x => x.replace(/candidate/g, 'ibus-tweaker-candidate')),
+                () => syncStyleClass(IBusPopup[$_].remove_style_class_name(this.dark, 'night'), PopupStyleClass), true),
         }, this);
     }
 
-    #bindSettings(set) {
+    $bindSettings(set) {
         this.$setIF = new F.Setting('org.gnome.desktop.interface', [[['scheme', 'color-scheme'],
             x => x === 'prefer-dark', () => this.#onStyleSet()]], this);
         this.$set = set.tie([K.STL], this, () => this.#onStyleSet());
@@ -191,33 +186,26 @@ class IBusPresetTheme extends F.Mortal {
     }
 }
 
-class IBusClipPopup extends BoxPointer.BoxPointer {
+class ClipPopup extends BoxPointer.BoxPointer {
     static {
         T.enrol(this);
     }
 
     constructor(page, hooks) {
-        super(St.Side.TOP);
-        this.set({visible: false, reactive: true});
-        this.#buildWidgets(page, hooks);
+        super(St.Side.TOP)[$].set({visible: false, reactive: true}).$buildWidgets(page, hooks);
         Main.layoutManager.addChrome(this);
         global.focusManager.add_group(this);
         global.stage.set_key_focus(this);
     }
 
-    #buildWidgets(page, hooks) {
-        let box = T.seq(w => this.bin.set_child(w), new St.BoxLayout({orientation: Clutter.Orientation.VERTICAL}));
-        let hbox = T.seq(w => box.add_child(w), new St.BoxLayout());
-        [this._preeditText, this._auxText] = [true, false].map(x => T.seq(w => hbox.add_child(w), new St.Label({visible: true, xExpand: x})));
-        this._candidateArea = T.seq(w => box.add_child(w), T.hook(hooks, new IBusArea.constructor()));
-        syncStyleClass(this, IBusPopup);
-        this.set_style(IBusPopup.style);
-        if(page) {
-            let btn = this._candidateArea._buttonBox;
-            btn.hide(); btn.show = btn.hide = T.nop;
-        } else {
-            this._candidateArea.setOrientation(IBus.Orientation.VERTICAL);
-        }
+    $buildWidgets(page, hooks) {
+        let box = T.seq(new St.BoxLayout({orientation: Clutter.Orientation.VERTICAL}), w => this.bin.set_child(w));
+        let hbox = T.seq(new St.BoxLayout(), w => box.add_child(w));
+        [this._preeditText, this._auxText] = [true, false].map(x => T.seq(new St.Label({visible: true, xExpand: x, opacity: x ? 255 : 160}), w => hbox.add_child(w)));
+        this._candidateArea = T.seq(new IBusArea.constructor()[$$].connect(hooks), w => box.add_child(w));
+        syncStyleClass(this[$].set_style(IBusPopup.style), IBusPopup);
+        if(page) this._candidateArea._buttonBox[$].hide().set({show: T.nop, hide: T.nop});
+        else this._candidateArea.setOrientation(IBus.Orientation.VERTICAL);
     }
 
     setPreedit(text) {
@@ -230,42 +218,37 @@ class IBusClipPopup extends BoxPointer.BoxPointer {
 
     summon(cursor) {
         this._candidateArea.visible = true;
-        this.setPosition(cursor, 0);
-        this.open(BoxPointer.PopupAnimation.NONE);
-        this.get_parent().set_child_above_sibling(this, null);
+        this[$].setPosition(cursor, 0)[$]
+            .open(BoxPointer.PopupAnimation.NONE)[$]
+            .get_parent().set_child_above_sibling(this, null);
         Main.pushModal(this, {actionMode: Shell.ActionMode.POPUP});
     }
 }
 
-class IBusClipHistory extends F.Mortal {
+class ClipHistory extends F.Mortal {
     constructor(set) {
-        super();
-        this.#bindSettings(set);
-        this.#buildSources();
-        this.#buildWidgets();
+        super()[$].$bindSettings(set)[$].$buildSources().$buildWidgets();
     }
 
-    #bindSettings(set) {
+    $bindSettings(set) {
         this.$set = set.tie([K.CLPS, K.PBTN], this);
     }
 
-    #buildSources() {
-        let box = new F.Source(() => T.hook({
-                'captured-event': (...xs) => this.#onCapture(...xs),
-            }, new IBusClipPopup(this[K.PBTN], {
-                'cursor-up': () => this.navigate(-1),
-                'cursor-down': () => this.navigate(1),
-                'next-page': () => this.navigate(this[K.CLPS]),
-                'previous-page': () => this.navigate(-this[K.CLPS]),
-                'candidate-clicked': (...xs) => this.#onCandidateClick(...xs),
-            }))),
-            keys = F.Source.newKeys(this.$set.hub, K.CKYS, () => this.summon(), true),
-            csr = T.seq(x => Main.uiGroup.add_child(x), new Clutter.Actor({opacity: 0, x: 1, y: 1})), // HACK: workaround for the cursor jumping
+    $buildSources() {
+        let box = F.Source.new(() => new ClipPopup(this[K.PBTN], [
+                ['cursor-up', () => this.navigate(-1)],
+                ['cursor-down', () => this.navigate(1)],
+                ['next-page', () => this.navigate(this[K.CLPS])],
+                ['previous-page', () => this.navigate(-this[K.CLPS])],
+                ['candidate-clicked', (...xs) => this.#onCandidateClick(...xs)],
+            ])[$].connect('captured-event', (...xs) => this.#onCapture(...xs))),
+            key = F.Source.newKeys(this.$set.hub, K.CKYS, () => this.summon(), true),
+            csr = T.seq(new Clutter.Actor({opacity: 0, x: 1, y: 1}), x => Main.uiGroup.add_child(x)), // HACK: workaround for the cursor jumping
             put = F.Source.newTimer(x => [() => IBusManager._panelService?.commit_text(IBus.Text.new_from_string(x)), 30]);
-        this.$src = F.Source.tie({csr, box, keys, put}, this);
+        this.$src = F.Source.tie({csr, box, key, put}, this);
     }
 
-    #buildWidgets() {
+    $buildWidgets() {
         F.connect(this, global.display.get_selection(), 'owner-changed', (...xs) => this.#onClipboardChange(...xs));
     }
 
@@ -280,7 +263,7 @@ class IBusClipHistory extends F.Mortal {
             let index = ClipHist.findIndex(x => x[0] === text);
             if(index < 0) {
                 ClipHist.unshift([text, this.#shrink(text), slugify(text)]);
-                while(ClipHist.length > 64) ClipHist.pop();
+                while(ClipHist.length > 32) ClipHist.pop();
             } else if(index > 0) {
                 [ClipHist[0], ClipHist[index]] = [ClipHist[index], ClipHist[0]];
             }
@@ -308,7 +291,6 @@ class IBusClipHistory extends F.Mortal {
                 case Clutter.KEY_Page_Down: this.navigate(this[K.CLPS]); break;
                 case Clutter.KEY_Up:        this.navigate(-1); break;
                 case Clutter.KEY_Down:      this.navigate(1); break;
-                case Clutter.KEY_backslash: this.merge(); break;
                 case Clutter.KEY_Delete:    this.delete(event.get_state() & Clutter.ModifierType.SHIFT_MASK); break;
                 case Clutter.KEY_BackSpace: this.setPreedit(this.preedit.slice(0, -1)); break;
                 case Clutter.KEY_Shift_L: break;
@@ -328,8 +310,8 @@ class IBusClipHistory extends F.Mortal {
         if(this.$src.box.active || !IBusManager._ready || Main.overview._shown) return;
         this.$src.box.summon();
         this.setPreedit('');
-        this.$src.csr.set_position(...IBusPopup._dummyCursor.get_transformed_position());
-        this.$src.csr.set_size(...IBusPopup._dummyCursor.get_transformed_size());
+        this.$src.csr[$].set_position(...IBusPopup._dummyCursor.get_transformed_position())
+            .set_size(...IBusPopup._dummyCursor.get_transformed_size());
         this.$src.box.hub.summon(this.$src.csr);
     }
 
@@ -344,17 +326,15 @@ class IBusClipHistory extends F.Mortal {
     }
 
     setCursor(cursor) {
-        this.cursor = cursor;
-        this.$page = Math.floor(this.cursor / this[K.CLPS]);
-        this.$addr = this.$page * this[K.CLPS];
-        this.$size = Math.min(this[K.CLPS], this.table.length - this.$addr);
-        let box = this.$src.box.hub,
-            indices = this.$size ? Indices.slice(0, this.$size) : ['\u{2205}'],
-            candidates = this.$size ? this.table.slice(this.$addr, this.$addr + this.$size).map(x => x[1]) : [_('Empty history.')];
-        box._candidateArea.setCandidates(indices, candidates, this.cursor % this[K.CLPS], this.$size);
-        box._candidateArea.updateButtons(false, this.$page, Math.ceil(this.table.length / this[K.CLPS]));
-        box.setAuxText(this.table[this.cursor]?.[0].length);
-        box.setPreedit(this.preedit);
+        this[$].cursor(cursor)[$]
+            .$page(Math.floor(this.cursor / this[K.CLPS]))[$]
+            .$addr(this.$page * this[K.CLPS])[$]
+            .$size(Math.min(this[K.CLPS], this.table.length - this.$addr));
+        let indices = this.$size ? Indices.slice(0, this.$size) : ['\u{2205}'];
+        let candidates = this.$size ? this.table.slice(this.$addr, this.$addr + this.$size).map(x => x[1]) : [_('Empty history.')];
+        this.$src.box.hub[$].setAuxText(this.table[this.cursor]?.[0].length)[$].setPreedit(this.preedit)
+            ._candidateArea[$].setCandidates(indices, candidates, this.cursor % this[K.CLPS], this.$size)[$]
+            .updateButtons(false, this.$page, Math.ceil(this.table.length / this[K.CLPS]));
     }
 
     #onCandidateClick(_a, index) {
@@ -376,17 +356,6 @@ class IBusClipHistory extends F.Mortal {
         }
     }
 
-    merge() {
-        let index = ClipHist.findIndex(x => x === this.table[this.cursor]);
-        if(index < 0 || index >= this.table.length - 1) return;
-        this.table.splice(this.cursor, 1);
-        let [clip] = ClipHist.splice(index, 1),
-            hays = ClipHist[index][2] + clip[2],
-            text = `${ClipHist[index][0]} ${clip[0]}`;
-        this.table[this.cursor] = ClipHist[index] = [text, this.#shrink(text), hays];
-        this.setCursor(this.cursor);
-    }
-
     select(key) {
         let index = Indices.findIndex(x => x === key);
         if(index < 0 || index >= this.$size) this.$src.box.dispel();
@@ -394,55 +363,55 @@ class IBusClipHistory extends F.Mortal {
     }
 
     setPreedit(preedit) {
-        this.preedit = preedit;
-        this.table = preedit ? ClipHist.filter(x => T.search(this.preedit, x[2])) : [...ClipHist];
-        this.setCursor(0);
+        this[$].preedit(preedit)[$]
+            .table(preedit ? ClipHist.reduce((p, x) => {
+                let seek = T.search(preedit, x[2]);
+                return seek ? p[$].push([seek, x]) : p;
+            }, []).sort(([[a, b]], [[m, n]]) => b - n || a - m).map(x => x[1]) : [...ClipHist])[$]
+            .setCursor(0);
     }
 }
 
-export class IBusSlugSearch extends F.Mortal {
+class SlugSearch extends F.Mortal {
     constructor() {
         super();
-        this.$src = F.Source.tie({
-            app: F.Source.newInjector([AppDisplay.AppSearchProvider.prototype, {getInitialResultSet: (...xs) => this.search(...xs)}], true),
-        }, this);
+        this.$src = F.Source.tie({app: F.Source.newInjector([AppDisplay.AppSearchProvider.prototype, {getInitialResultSet: (...xs) => this.search(...xs)}], true)}, this);
         F.connect(this, Gio.AppInfoMonitor.get(), 'changed', () => this.$parental && this.#update());
     }
 
     #init(host) {
         let map = charmap();
-        this.$acts = Array.from(host._systemActions._actions, ([k, {available: a, keywords: ws}]) =>
-            a ? [[k, ws.flatMap(w => /[^\p{ASCII}]/u.test(w) ? [slugify(w, map)] : [])]] : []).flat();
+        this.$acts = Array.from(host._systemActions._actions, ([k, {available, keywords}]) => available
+            ? [[k, keywords.flatMap(w => /[^\p{ASCII}]/u.test(w) ? [slugify(w, map)] : [])]] : []).flat();
         this.$parental = host._parentalControlsManager;
         this.#update(map);
-    }
-
-    async search(host, search, [terms, ...args]) {
-        let ret = await search.call(host, terms, ...args);
-        if(ret.length) return ret;
-        if(!this.$parental) this.#init(host);
-        return this.match([this.$apps, this.$acts], terms);
-    }
-
-    match(items, terms) {
-        let i, j, k;
-        return items.flatMap(xs => xs.reduce((p, [id, ws]) => {
-            i = Infinity;
-            if(terms.every(t => T.seq(x => { if(x < i) i = x, j = k; },
-                ws.findIndex(w => (k = w.indexOf(t)) >= 0)) >= 0)) (p[i] ??= []).push([j, id]);
-            return p;
-        }, []).reduce((p, x) => (x && x.sort(([a], [b]) => a - b).forEach(y => p.push(y[1])), p), []));
     }
 
     #update(map = charmap()) {
         let slug = x => x && /[^\p{ASCII}]/u.test(x) ? slugify(x, map) : '';
         this.$apps = Gio.AppInfo.get_all().reduce((p, app) => {
             if(!app.should_show() || !this.$parental.shouldShowApp(app)) return p;
-            let words = app.get_locale_string('Keywords')?.split(';').map(slug).filter(T.id).join(';') ?? '';
-            let names = ['Name', 'GenericName', 'X-GNOME-FullName'].map(x => slug(app.get_locale_string(x)));
-            if(words || names.some(T.id)) names[0] ||= app.get_string('Name').toLowerCase(), p.push([app.get_id(), names.concat(words)]);
-            return p;
+            let names = ['Name', 'GenericName', 'X-GNOME-FullName'].map(x => slug(GioUnix.DesktopAppInfo.get_locale_string(app, x)))[$]
+                .push(GioUnix.DesktopAppInfo.get_locale_string(app, 'Keywords')?.split(';').map(slug).filter(T.id).join(';') ?? '');
+            if(names.some(T.id)) names[0] ||= GioUnix.DesktopAppInfo.get_string(app, 'Name').toLowerCase(), p.push([app.get_id(), names]);
+            return p; // FIXME: https://gitlab.gnome.org/GNOME/glib/-/issues/3744
         }, []);
+    }
+
+    async search(host, func, args) {
+        let ret = await func.apply(host, args);
+        if(!this.$parental) this.#init(host);
+        return ret.concat(this.match([this.$apps, this.$acts], args[0]));
+    }
+
+    match(items, terms) {
+        let i, j, k;
+        return items.flatMap(xs => xs.reduce((p, [id, ws]) => {
+            i = Infinity;
+            if(terms.every(t => T.seq(ws.findIndex(w => (k = w.indexOf(t)) >= 0),
+                x => { if(x < i) i = x, j = k; }) >= 0)) (p[i] ??= []).push([j, id]);
+            return p;
+        }, []).reduce((p, x) => (x && x.sort(([a], [b]) => a - b).forEach(y => p.push(y[1])), p), []));
     }
 }
 
@@ -452,12 +421,12 @@ class IBusTweaker extends F.Mortal {
         IBusPopup._dummyCursor.set_position(1, 1); // HACK: workaround for the popup jumping
         syncStyleClass(PopupStyleClass, IBusPopup);
         let tweaks = [
-            [K.APP,  IBusSlugSearch],
-            [K.ATSW, IBusAutoSwitch],
-            [K.PBTN, IBusPageButton],
-            [K.CLP,  IBusClipHistory],
-            [K.FNT,  IBusFontSetting],
-            [K.THM,  IBusPresetTheme],
+            [K.APP,  SlugSearch],
+            [K.ATSW, InputMode],
+            [K.PBTN, PageButton],
+            [K.CLP,  ClipHistory],
+            [K.FNT,  FontSetting],
+            [K.THM,  PresetTheme],
         ];
         this.$set = new F.Setting(gset, tweaks.map(([k]) => [k, null, x => this.$src[k].toggle(x)]), this);
         this.$src = F.Source.tie(Object.fromEntries(tweaks.map(([k, v]) => [k, F.Source.new(() => new v(this.$set), this[k])])), this);

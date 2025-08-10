@@ -4,7 +4,7 @@
 project(
   'gnome-shell-extension-ibus-tweaker',
   license: 'GPL-3.0-or-later',
-  version: '48.0',
+  version: '49.beta',
   meson_version: '>= 1.4.0',
 )
 
@@ -26,8 +26,8 @@ metadata = {
   'rdnn': 'org.gnome.shell.extensions.' + _title,
   'path': f'/org/gnome/shell/extensions/@_title@/',
   'version': (_version != 0) ? _version : run_command('cli/get-version.sh', check: true, env: ['EGO=2820' / _title]).stdout().strip(),
-  'description': 'Tweaker of IBus for theme, font, input mode and clipboard history'
-    + (target == 'zip' ? '\\n\\nFor support, please report issues via the Homepage link below rather than the review section below it' : '')
+  'description': 'Tweak IBus font, input mode, clipboard history, etc.'
+    + (target == 'zip' ? '\\n\\nFor support, please report issues in time via the Homepage link below rather than the review section below it' : '')
 }
 
 if(target == 'system')

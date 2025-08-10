@@ -17,11 +17,11 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 
-#: src/ui.js:384
+#: src/ui.js:344
 msgid "Mismatched filetype"
 msgstr "文件类型不匹配"
 
-#: src/ui.js:516
+#: src/ui.js:462
 msgid "Click or press ENTER to apply changes"
 msgstr "单击或按回车应用更改"
 
@@ -58,8 +58,8 @@ msgid "_Slug app seacrh"
 msgstr "搜应用别名(_S)"
 
 #: src/prefs.js:34
-msgid "Fallback search for localized apps in Romanized acronyms"
-msgstr "以罗马化缩写备选搜索本地化应用"
+msgid "Also search for localized apps in Romanized acronyms"
+msgstr "另以罗马化缩写搜索本地化应用"
 
 #: src/prefs.js:35
 msgid "_Preset theme"
@@ -90,29 +90,28 @@ msgid "numeric keypad"
 msgstr "小键盘"
 
 #: src/prefs.js:39
-msgid "merge entries"
-msgstr "合并条目"
-
-#: src/prefs.js:40
 msgid "delete current entry"
 msgstr "删除当前条目"
 
-#: src/prefs.js:41
+#: src/prefs.js:40
 msgid "delete all entries"
 msgstr "删除所有条目"
 
-#: src/extension.js:224
+#: src/extension.js:212
 msgid "📋："
 msgstr "📋："
 
-#: src/extension.js:228
+#: src/extension.js:216
 #, javascript-format
 msgid "%dC"
 msgstr "%d字"
 
-#: src/extension.js:353
+#: src/extension.js:334
 msgid "Empty history."
 msgstr "空空如也。"
+
+#~ msgid "merge entries"
+#~ msgstr "合并条目"
 
 #~ msgid "All"
 #~ msgstr "全部"

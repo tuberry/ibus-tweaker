@@ -4,7 +4,7 @@ SPDX-License-Identifier: CC-BY-SA-4.0
 -->
 # ibus-tweaker
 
-Tweaker of IBus in GNOME Shell for theme, font, input mode and clipboard history.
+GNOME Shell extension to tweak IBus font, input mode, clipboard history, etc.
 > 狙公赋芧曰朝三而暮四。众狙皆怒。曰然则朝四而暮三。众狙皆悦。 —— *《庄子·齐物论》*\
 [![license]](/LICENSE.md)
 
@@ -32,14 +32,6 @@ It's quite the same as installing from:
 ### E.G.O
 
 [<img src="https://raw.githubusercontent.com/andyholmes/gnome-shell-extensions-badge/master/get-it-on-ego.svg?sanitize=true" alt="Get it on GNOME Extensions" height="100" align="middle">][EGO]
-
-## Features
-
-![itpref](https://github.com/user-attachments/assets/fb5573ae-f1f9-44fd-a01d-f1fab5bcefda)
-
-**Clipboard history**:
-
-https://user-images.githubusercontent.com/17917040/139533759-a5ebe54c-2fca-4006-9257-850877268499.mp4
 
 ## Contributions
 
