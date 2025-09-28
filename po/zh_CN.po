@@ -17,11 +17,11 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 
-#: src/ui.js:344
+#: src/ui.js:366
 msgid "Mismatched filetype"
 msgstr "文件类型不匹配"
 
-#: src/ui.js:462
+#: src/ui.js:488
 msgid "Click or press ENTER to apply changes"
 msgstr "单击或按回车应用更改"
 
@@ -97,16 +97,16 @@ msgstr "删除当前条目"
 msgid "delete all entries"
 msgstr "删除所有条目"
 
-#: src/extension.js:212
+#: src/extension.js:211
 msgid "📋："
 msgstr "📋："
 
-#: src/extension.js:216
+#: src/extension.js:215
 #, javascript-format
 msgid "%dC"
 msgstr "%d字"
 
-#: src/extension.js:334
+#: src/extension.js:333
 msgid "Empty history."
 msgstr "空空如也。"
 

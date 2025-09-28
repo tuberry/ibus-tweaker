@@ -7,7 +7,6 @@ import IBus from 'gi://IBus';
 import Shell from 'gi://Shell';
 import Pango from 'gi://Pango';
 import Clutter from 'gi://Clutter';
-import GioUnix from 'gi://GioUnix';
 
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import * as AppDisplay from 'resource:///org/gnome/shell/ui/appDisplay.js';
@@ -276,7 +275,7 @@ class ClipHistory extends F.Mortal {
             let key = event.get_key_symbol();
             if(key >= Clutter.KEY_exclam && key <= Clutter.KEY_asciitilde) {
                 if(key >= Clutter.KEY_0 && key <= Clutter.KEY_9) this.select(String.fromCodePoint(key));
-                else this.setPreedit(this.preedit + String.fromCodePoint(key));
+                else this.setPreedit(this.preedit + String.fromCodePoint(key).toLocaleLowerCase());
             } else if(key >= Clutter.KEY_KP_0 && key <= Clutter.KEY_KP_9) {
                 this.setPreedit(this.preedit + (key - Clutter.KEY_KP_0));
             } else {
@@ -344,14 +343,12 @@ class ClipHistory extends F.Mortal {
 
     delete(all) {
         if(all) {
-            ClipHist.splice(0);
             this.table.splice(0);
+            ClipHist.splice(0);
             this.setCursor(0);
         } else {
-            let index = ClipHist.findIndex(x => x === this.table[this.cursor]);
-            if(index < 0) return;
-            ClipHist.splice(index, 1);
-            this.table.splice(this.cursor, 1);
+            let [frag] = this.table.splice(this.cursor, 1);
+            ClipHist.splice(ClipHist.findIndex(x => x === frag), 1);
             this.setCursor(this.cursor >= this.table.length ? Math.max(this.table.length - 1, 0) : this.cursor);
         }
     }
@@ -391,9 +388,9 @@ class SlugSearch extends F.Mortal {
         let slug = x => x && /[^\p{ASCII}]/u.test(x) ? slugify(x, map) : '';
         this.$apps = Gio.AppInfo.get_all().reduce((p, app) => {
             if(!app.should_show() || !this.$parental.shouldShowApp(app)) return p;
-            let names = ['Name', 'GenericName', 'X-GNOME-FullName'].map(x => slug(GioUnix.DesktopAppInfo.get_locale_string(app, x)))[$]
-                .push(GioUnix.DesktopAppInfo.get_locale_string(app, 'Keywords')?.split(';').map(slug).filter(T.id).join(';') ?? '');
-            if(names.some(T.id)) names[0] ||= GioUnix.DesktopAppInfo.get_string(app, 'Name').toLowerCase(), p.push([app.get_id(), names]);
+            let names = ['Name', 'GenericName', 'X-GNOME-FullName'].map(x => slug(app.get_locale_string(x)))[$]
+                .push(app.get_locale_string('Keywords')?.split(';').map(slug).filter(T.id).join(';') ?? '');
+            if(names.some(T.id)) names[0] ||= app.get_string('Name').toLowerCase(), p.push([app.get_id(), names]);
             return p; // FIXME: https://gitlab.gnome.org/GNOME/glib/-/issues/3744
         }, []);
     }
