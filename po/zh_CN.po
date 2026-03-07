@@ -17,11 +17,11 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 
-#: src/ui.js:366
+#: src/ui.js:365
 msgid "Mismatched filetype"
 msgstr "文件类型不匹配"
 
-#: src/ui.js:488
+#: src/ui.js:482
 msgid "Click or press ENTER to apply changes"
 msgstr "单击或按回车应用更改"
 
@@ -54,7 +54,7 @@ msgid "Remember the input mode for each application"
 msgstr "记住每个应用的输入模式"
 
 #: src/prefs.js:34
-msgid "_Slug app seacrh"
+msgid "_Slug app search"
 msgstr "搜应用别名(_S)"
 
 #: src/prefs.js:34
@@ -90,23 +90,27 @@ msgid "numeric keypad"
 msgstr "小键盘"
 
 #: src/prefs.js:39
+msgid "copy current entry"
+msgstr "复制当前条目"
+
+#: src/prefs.js:40
 msgid "delete current entry"
 msgstr "删除当前条目"
 
-#: src/prefs.js:40
+#: src/prefs.js:41
 msgid "delete all entries"
 msgstr "删除所有条目"
 
-#: src/extension.js:211
-msgid "📋："
-msgstr "📋："
+#: src/extension.js:198
+msgid "📋: "
+msgstr "📋: "
 
-#: src/extension.js:215
+#: src/extension.js:202
 #, javascript-format
 msgid "%dC"
 msgstr "%d字"
 
-#: src/extension.js:333
+#: src/extension.js:315
 msgid "Empty history."
 msgstr "空空如也。"
 
