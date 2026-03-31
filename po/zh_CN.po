@@ -25,94 +25,101 @@ msgstr "文件类型不匹配"
 msgid "Click or press ENTER to apply changes"
 msgstr "单击或按回车应用更改"
 
-#: src/prefs.js:25
+#: src/prefs.js:26
 msgid "Page size"
 msgstr "页面容量"
 
-#: src/prefs.js:26
+#: src/prefs.js:27
 msgid "System"
 msgstr "系统"
 
-#: src/prefs.js:26
+#: src/prefs.js:27
 msgid "Light"
 msgstr "亮色"
 
-#: src/prefs.js:26
+#: src/prefs.js:27
 msgid "Dark"
 msgstr "暗色"
 
-#: src/prefs.js:32
+#: src/prefs.js:33
 msgid "_Hide page buttons"
 msgstr "隐藏页按钮(_H)"
 
-#: src/prefs.js:33
+#: src/prefs.js:34
 msgid "_Autoswitch input mode"
 msgstr "切输入模式(_A)"
 
-#: src/prefs.js:33
+#: src/prefs.js:34
 msgid "Remember the input mode for each application"
 msgstr "记住每个应用的输入模式"
 
-#: src/prefs.js:34
+#: src/prefs.js:35
 msgid "_Slug app search"
 msgstr "搜应用别名(_S)"
 
-#: src/prefs.js:34
+#: src/prefs.js:35
 msgid "Also search for localized apps in Romanized acronyms"
 msgstr "另以罗马化缩写搜索本地化应用"
 
-#: src/prefs.js:35
+#: src/prefs.js:36
+msgid "_Fgcolor attribute"
+msgstr "前景色属性"
+
+#: src/prefs.js:36
+msgid "Support for candidate styles such as comments"
+msgstr "用于注释等候选项样式"
+
+#: src/prefs.js:37
 msgid "_Preset theme"
 msgstr "预定义主题(_P)"
 
-#: src/prefs.js:35
+#: src/prefs.js:37
 msgid "Compact mode applicable mimetic theme"
 msgstr "单行模式适用的拟态主题"
 
-#: src/prefs.js:36
+#: src/prefs.js:38
 msgid "_Custom font"
 msgstr "自定义字体(_C)"
 
-#: src/prefs.js:37
+#: src/prefs.js:39
 msgid "C_lipboard history"
 msgstr "剪贴板历史(_L)"
 
-#: src/prefs.js:37
+#: src/prefs.js:39
 msgid "Help"
 msgstr "帮助"
 
-#: src/prefs.js:38
+#: src/prefs.js:40
 msgid "input digits"
 msgstr "输入数字"
 
-#: src/prefs.js:38
+#: src/prefs.js:40
 msgid "numeric keypad"
 msgstr "小键盘"
 
-#: src/prefs.js:39
+#: src/prefs.js:41
 msgid "copy current entry"
 msgstr "复制当前条目"
 
-#: src/prefs.js:40
+#: src/prefs.js:42
 msgid "delete current entry"
 msgstr "删除当前条目"
 
-#: src/prefs.js:41
+#: src/prefs.js:43
 msgid "delete all entries"
 msgstr "删除所有条目"
 
-#: src/extension.js:198
-msgid "📋: "
-msgstr "📋: "
-
-#: src/extension.js:202
+#: src/extension.js:256
 #, javascript-format
 msgid "%dC"
 msgstr "%d字"
 
-#: src/extension.js:315
+#: src/extension.js:379
 msgid "Empty history."
 msgstr "空空如也。"
+
+#~ msgid "📋: "
+#~ msgstr "📋: "
 
 #~ msgid "merge entries"
 #~ msgstr "合并条目"

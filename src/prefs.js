@@ -17,11 +17,12 @@ class IBusTweakerPrefs extends UI.Page {
             [K.CKYS, new UI.Keys()],
             [K.FNTS, new UI.Font()],
             [K.APP,  new UI.Check()],
-            [K.ATSW, new UI.Check()],
+            [K.IPM,  new UI.Check()],
             [K.CLP,  new UI.Check()],
             [K.FNT,  new UI.Check()],
-            [K.PBTN, new UI.Check()],
+            [K.BTN,  new UI.Check()],
             [K.THM,  new UI.Check()],
+            [K.FGA,  new UI.Check()],
             [K.CLPS, new UI.Spin(4, 10, 1, '', _('Page size'))],
             [K.STL,  new UI.Drop([_('System'), _('Light'), _('Dark')])],
         ];
@@ -29,12 +30,13 @@ class IBusTweakerPrefs extends UI.Page {
 
     $buildUI() {
         return [
-            [K.PBTN, [_('_Hide page buttons')]],
-            [K.ATSW, [_('_Autoswitch input mode'), _('Remember the input mode for each application')]],
-            [K.APP,  [_('_Slug app search'), _('Also search for localized apps in Romanized acronyms')]],
-            [K.THM,  [_('_Preset theme'), _('Compact mode applicable mimetic theme')], K.STL],
-            [K.FNT,  [_('_Custom font')], K.FNTS],
-            [K.CLP,  [_('C_lipboard history')], new UI.Help(({h, k}) => [h(_('Help')), [
+            [K.BTN, [_('_Hide page buttons')]],
+            [K.IPM, [_('_Autoswitch input mode'), _('Remember the input mode for each application')]],
+            [K.APP, [_('_Slug app search'), _('Also search for localized apps in Romanized acronyms')]],
+            [K.FGA, [_('_Fgcolor attribute'), _('Support for candidate styles such as comments')]],
+            [K.THM, [_('_Preset theme'), _('Compact mode applicable mimetic theme')], K.STL],
+            [K.FNT, [_('_Custom font')], K.FNTS],
+            [K.CLP, [_('C_lipboard history')], new UI.Help(({h, k}) => [h(_('Help')), [
                 [_('input digits'), _('numeric keypad')],
                 [_('copy current entry'), k('backslash')],
                 [_('delete current entry'), k('Delete')],

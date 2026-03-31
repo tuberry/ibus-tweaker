@@ -7,6 +7,8 @@ import Meta from 'gi://Meta';
 import Pango from 'gi://Pango';
 import Shell from 'gi://Shell';
 import Clutter from 'gi://Clutter';
+import GObject from 'gi://GObject';
+import Graphene from 'gi://Graphene';
 
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import * as AppDisplay from 'resource:///org/gnome/shell/ui/appDisplay.js';
@@ -53,75 +55,112 @@ function syncStyleClass(aim, src, func = T.id, tpl = PopupStyleClass) {
 
 class InputMode extends F.Mortal {
     $bindSettings(set) {
-        this.$set = set.tie(this, [[K.IPMS, x => new Map(Object.entries(x)), null, true]]);
+        this.$set = set.tie(this, [[['modes', K.IPMS], x => new Map(Object.entries(x)), null, true]]);
     }
 
     $buildSources() {
         F.Source.tie(this,
-            F.Source.newHandler(global.display, 'notify::focus-window', () => this.toggle(),
-                Main.overview, 'hidden', () => this.setDummyWMClass(), 'shown', () => this.setDummyWMClass('$overview')),
+            F.Source.newHandler(global, 'shutdown', () => this.save(), this, 'destroy', () => this.save(),
+                global.display, 'notify::focus-window', () => this.toggle(), GObject.ConnectFlags.AFTER,
+                Main.overview, 'hidden', () => this.setDummy(), 'shown', () => this.setDummy('$overview')),
             F.Source.newInjector([ModalDialog.ModalDialog.prototype, {
-                open: (a, f) => { this.setDummyWMClass('$modal-dialog'); return f.call(a); },
-                close: (a, f) => { this.setDummyWMClass(Main.lookingGlass?.isOpen ? '$looking-glass' : ''); return f.call(a); },
+                open: (a, f, xs) => { this.setDummy('$modal-dialog'); return f.apply(a, xs); },
+                close: (a, f, xs) => { this.setDummy(Main.lookingGlass?.isOpen ? '$looking-glass' : ''); return f.apply(a, xs); },
             }, LookingGlass.LookingGlass.prototype, {
-                open: (a, f) => { this.setDummyWMClass('$looking-glass'); return f.call(a); },
-                close: (a, f) => { this.setDummyWMClass(); return f.call(a); },
+                open: (a, f, xs) => { this.setDummy('$looking-glass'); return f.apply(a, xs); },
+                close: (a, f, xs) => { this.setDummy(); return f.apply(a, xs); },
             }], true));
     }
 
+    save() {
+        this.$set.set(K.IPMS, Object.fromEntries(this.modes));
+    }
+
     *enumerate(props) {
-        if(props) for(let p, i = 0; (p = props.get(i)); i++) if(p.key.startsWith('InputMode')) yield p;
+        if(props) for(let i = 0, p; (p = props.get(i)); i++) if(p.key.startsWith('InputMode')) yield p;
     }
 
     get(props) {
-        for(let {propType, symbol, label, state, subProps, key} of this.enumerate(props)) {
-            switch(propType) {
-            case IBus.PropType.NORMAL: return symbol?.get_text() ?? label.get_text(); // ibus-libpinyin
-            case IBus.PropType.TOGGLE: return state.toString(); // ibus-hangul
-            case IBus.PropType.MENU: return this.get(subProps); // ibus-typing-booster
-            case IBus.PropType.RADIO: if(state) return key.split('.').at(-1); break; // ibus-typing-booster
+        for(let p of this.enumerate(props)) {
+            switch(p.propType) {
+            case IBus.PropType.NORMAL: // ibus-libpinyin
+            case IBus.PropType.TOGGLE: return p.symbol?.get_text(); // ibus-hangul
+            case IBus.PropType.RADIO: if(p.state) return p.key.split('.').at(-1); break; // ibus-typing-booster
+            case IBus.PropType.MENU: return this.get(p.subProps); // ibus-typing-booster
             }
         }
-        return '';
     }
 
     set(props, mode) {
-        for(let {propType, key, state, subProps} of this.enumerate(props)) {
-            switch(propType) {
+        for(let p of this.enumerate(props)) {
+            switch(p.propType) {
             case IBus.PropType.NORMAL:
-            case IBus.PropType.TOGGLE: return this.activate(key, !state);
-            case IBus.PropType.MENU: return this.set(subProps, mode);
-            case IBus.PropType.RADIO: if(key.endsWith(mode)) return this.activate(key, !state); break;
+            case IBus.PropType.TOGGLE: this.activate(p); break;
+            case IBus.PropType.MENU: return this.set(p.subProps, mode);
+            case IBus.PropType.RADIO: if(p.key.endsWith(mode)) this.activate(p); break;
             }
         }
     }
 
-    activate(key, state) {
-        IBusManager.activateProperty(key, state ? 1 : 0);
+    activate(prop) {
+        IBusManager.activateProperty(prop.key, prop.state ? IBus.PropState.UNCHECKED : IBus.PropState.CHECKED);
     }
 
-    setDummyWMClass(dummy) {
+    setDummy(dummy) {
         this[$].dummy(dummy).toggle();
     }
 
-    save(win, id, mode) {
-        this[K.IPMS].set(win, [id, mode]);
-        this.$set.set(K.IPMS, Object.fromEntries(this[K.IPMS]));
-    }
-
-    check(win, id, mode) {
-        if(!win) return false;
-        if(!this[K.IPMS].has(win)) this.save(win, id, mode);
-        [this.id, this.mode] = this[K.IPMS].get(win);
-        return this.id !== id || this.mode !== mode;
+    check(id, mode, set) {
+        if(!this.win) return false;
+        if(!this.modes.has(this.win)) this.modes.set(this.win, [id, mode]);
+        [this.id, this.mode] = this.modes.get(this.win);
+        return set ? this.mode !== mode && this.id === id : this.mode !== mode || this.id !== id;
     }
 
     toggle() {
         let {id, properties} = InputManager.currentSource;
-        let mode = this.get(properties);
-        if(this.check(this.win, id, mode)) this.save(this.win, id, mode);
-        let win = this.dummy || global.display.focus_window?.wm_class?.toLowerCase();
-        if(this.check(this.win = win, id, mode) && this.id === id) this.set(properties, this.mode);
+        let mode = this.get(properties) ?? '';
+        if(this.check(id, mode)) this.modes.set(this.win, [id, mode]);
+        this.win = this.dummy || global.display.focus_window?.wm_class;
+        if(this.check(id, mode, true)) this.set(properties, this.mode);
+    }
+}
+
+class FgAttribute extends F.Mortal {
+    $buildSources() {
+        this.$src = F.Source.tie(this, F.Source.newInjector([
+            IBusArea, {setCandidates: (...xs) => this.setCandidates(...xs)},
+            IBus.LookupTable.prototype, {is_cursor_visible: (a, f, xs) => [f.apply(a, xs), a]},
+        ], true));
+    }
+
+    setCandidates(a, f, xs) {
+        let [cursor, table] = xs.at(-1);
+        f.apply(a, xs.with(-1, cursor));
+        let pos = table.get_cursor_pos();
+        let start = pos - (pos % table.get_page_size());
+        for(let n = xs[1].length, i = 0; i < n; i++) {
+            let box = IBusArea._candidateBoxes[i];
+            this.sync(box._indexLabel, table.get_label(i));
+            this.sync(box._candidateLabel, table.get_candidate(start + i));
+        }
+    }
+
+    sync(label, ibus_text) {
+        let attrs = ibus_text?.get_attributes();
+        if(!attrs) return;
+        let mark = '';
+        let utf8 = Iterator.from(ibus_text.get_text()); // String.slice - UTF-16 & IBus.Text - g_utf8_strlen, so iter codepoints here
+        for(let cursor = 0, i = 0, attr; (attr = attrs.get(i)); i++) {
+            let start = attr.get_start_index();
+            if(attr.get_attr_type() !== IBus.AttrType.FOREGROUND || start < cursor) continue;
+            let end = attr.get_end_index(),
+                color = attr.get_value().toString(16).padStart(6, '0'),
+                text = T.esc(utf8.take(start - cursor).toArray().join('')),
+                span = T.esc(utf8.take((cursor = end) - start).toArray().join(''));
+            mark += `${text}<span fgcolor="#${color}">${span}</span>`;
+        }
+        if(mark) F.marks(label, mark + T.esc(utf8.toArray().join('')));
     }
 }
 
@@ -152,16 +191,18 @@ class PageButton extends F.Mortal { // HACK: workaround for css without `display
 class PresetTheme extends F.Mortal {
     static Style = {SYSTEM: 0, LIGHT: 1, DARK: 2};
 
+    aligned = new WeakSet();
+
     $bindSettings(set) {
-        this.$setIF = new F.Setting('org.gnome.desktop.interface', this, [
-            [['scheme', 'color-scheme'], x => x === 'prefer-dark', () => this.$update()],
-        ]);
+        this.$setIF = new F.Setting('org.gnome.desktop.interface', this,
+            [[['scheme', 'color-scheme'], x => x === 'prefer-dark', () => this.$update()]]);
         this.$set = set.tie(this, [K.STL], null, () => this.$update());
     }
 
     $buildSources() {
-        F.Source.tie(this, new F.Source(() => syncStyleClass(IBusPopup, PopupStyleClass, x => x.replace(/candidate/g, 'ibus-tweaker-candidate')),
-            () => syncStyleClass(IBusPopup[$_].remove_style_class_name(this.dark, 'night'), PopupStyleClass), true));
+        F.Source.tie(this, F.Source.newInjector([IBusPopup, {get_theme_node: (...xs) => this.$align(...xs)}], true),
+            new F.Source(() => syncStyleClass(IBusPopup, PopupStyleClass, x => x.replace(/candidate/g, 'ibus-tweaker-candidate')),
+                () => syncStyleClass(IBusPopup[$_].remove_style_class_name(this.dark, 'night'), PopupStyleClass), true));
         this.$update();
     }
 
@@ -170,6 +211,21 @@ class PresetTheme extends F.Mortal {
         if(this.dark === dark) return;
         if((this.dark = dark)) IBusPopup.add_style_class_name('night');
         else IBusPopup.remove_style_class_name('night');
+    }
+
+    $align(a, f, xs) {
+        let theme = f.apply(a, xs);
+        if(!this.aligned.has(theme)) {
+            this.aligned.add(theme);
+            T.inject(theme, 'get_length', (o, k) => (...ys) => {
+                if(ys[0] === '-arrow-border-radius') {
+                    let {x} = IBusArea._candidateBoxes[0]._candidateLabel.apply_relative_transform_to_point(IBusPopup, Graphene.point3d_zero());
+                    if(Number.isFinite(x)) return x / 2;
+                }
+                return k.apply(o, ys);
+            });
+        }
+        return theme;
     }
 }
 
@@ -190,17 +246,14 @@ class ClipPopup extends BoxPointer.BoxPointer {
         let hbox = new St.BoxLayout()[$$](w => box.add_child(w));
         [this._preeditText, this._auxText] = [true, false].map(x => new St.Label({visible: true, xExpand: x, opacity: x ? 255 : 160})[$$](w => hbox.add_child(w)));
         this._candidateArea = new IBusArea.constructor()[$s].connect(hooks)[$$](w => box.add_child(w));
-        syncStyleClass(this[$].set_style(IBusPopup.style), IBusPopup);
+        syncStyleClass(this[$].set_style(`max-width: ${ClipHistory.WIDTH / 2}em; ${IBusPopup.style}`), IBusPopup);
         if(page) this._candidateArea._buttonBox[$].hide().set({show: T.nop, hide: T.nop});
         else this._candidateArea.setOrientation(IBus.Orientation.VERTICAL);
     }
 
-    setPreedit(text) {
-        this._preeditText.set_text(`${_('📋: ')}${text}`);
-    }
-
-    setAuxText(count) {
-        this._auxText.set_text(_('%dC').format(count ?? 0));
+    setPreedit(text, count) {
+        this._preeditText.set_text(`📋: ${text}`);
+        this._auxText.set_text(count ? _('%dC').format(count) : null);
     }
 
     summon(cursor) {
@@ -214,30 +267,27 @@ class ClipPopup extends BoxPointer.BoxPointer {
 
 class ClipHistory extends F.Mortal {
     static DB = [];
+    static WIDTH = 50; // max display chars
     static Indices = '1234567890';
 
     $bindSettings(set) {
-        this.$set = set.tie(this, [K.CLPS, K.PBTN]);
+        this.$set = set.tie(this, [K.CLPS, K.BTN]);
     }
 
     $buildSources() {
-        let box = F.Source.new(() => new ClipPopup(this[K.PBTN], [
+        let box = F.Source.new(() => new ClipPopup(this[K.BTN], [
                 ['cursor-up', () => this.navigate(-1)],
                 ['cursor-down', () => this.navigate(1)],
                 ['next-page', () => this.navigate(this[K.CLPS])],
                 ['previous-page', () => this.navigate(-this[K.CLPS])],
                 ['candidate-clicked', (_a, x) => this.commit(this.addr + x)],
             ])[$].connect('captured-event', (...xs) => this.$onCapture(...xs))),
+            kbd = F.Source.newKeyboard(),
+            put = F.Source.newTimer(x => [() => kbd.commit(x, this.focused), 30]),
             key = F.Source.newKeys(this.$set.hub, K.CKYS, () => this.summon(), true),
             csr = new Clutter.Actor({opacity: 0, x: 1, y: 1})[$$](x => Main.uiGroup.add_child(x)), // HACK: workaround for the cursor jumping
-            put = F.Source.newTimer(x => [() => IBusManager._panelService?.commit_text(IBus.Text.new_from_string(F.bracket(x))), 30]),
             dog = F.Source.newHandler(global.display.get_selection(), 'owner-changed', (...xs) => this.$onClipboardChange(...xs));
-        this.$src = F.Source.tie(this, {csr, box, put}, key, dog);
-    }
-
-    $shrink(txt, len = 20) {
-        let ret = txt.length > 2 * len ? `${txt.slice(0, len)}\u{2026}${txt.slice(-len)}` : txt;
-        return [[/\n|\r/g, '\u{21b5}'], ['\t', '\u{21e5}']].reduce((p, x) => p.replaceAll(...x), ret);
+        this.$src = F.Source.tie(this, {csr, box, put, kbd}, key, dog);
     }
 
     $onClipboardChange(_s, type, src) {
@@ -246,8 +296,17 @@ class ClipHistory extends F.Mortal {
             let {db} = this;
             let index = db.findIndex(x => x[0] === text);
             if(index < 0) {
-                db.unshift([text, this.$shrink(text), slugify(text)]);
-                while(db.length > 32) db.pop();
+                db.unshift(new Proxy({text}, {
+                    get(t, p, r) {
+                        switch(p) {
+                        case 'search': return (t[p] ??= (x => x === text ? '' : x)(slugify(text))) || text;
+                        case 'shrink': return (t[p] ??= (x => x === text ? '' : `${x}...`)(text
+                                .slice(0, ClipHistory.WIDTH).replace(/\n|\r/g, '\u{21b5}'))) || text;
+                        default: return Reflect.get(t, p, r);
+                        }
+                    },
+                }));
+                while(db.length > 50) db.pop();
             } else if(index > 0) {
                 db.unshift(...db.splice(index, 1));
             }
@@ -293,13 +352,13 @@ class ClipHistory extends F.Mortal {
     }
 
     summon() {
-        if(this.$src.box.active || !IBusManager._ready) return;
-        this.defocus = !Main.inputMethod.currentFocus;
+        if(this.$src.box.active) return;
+        this.focused = this.$src.kbd.focused();
         this.$src.box.summon();
         this.updatePreedit('');
         let x, y, width, height;
-        if(this.defocus) [x, y] = global.get_pointer(), width = height = Meta.prefs_get_cursor_size();
-        else ({origin: {x, y}, size: {width, height}} = IBusPopup._dummyCursor.get_transformed_extents());
+        if(this.focused) ({origin: {x, y}, size: {width, height}} = IBusPopup._dummyCursor.get_transformed_extents());
+        else [x, y] = global.get_pointer(), width = height = Meta.prefs_get_cursor_size();
         this.$src.box.hub.summon(this.$src.csr[$].set_position(x, y)[$].set_size(width, height));
     }
 
@@ -317,16 +376,17 @@ class ClipHistory extends F.Mortal {
         this[$].pos(pos)[$].page(Math.floor(this.pos / this[K.CLPS]))[$]
             .addr(this.page * this[K.CLPS])[$].size(Math.min(this[K.CLPS], this.table.length - this.addr));
         let indices = this.size ? ClipHistory.Indices.slice(0, this.size) : ['\u{2205}'];
-        let candidates = this.size ? this.table.slice(this.addr, this.addr + this.size).map(x => x[1]) : [_('Empty history.')];
-        this.$src.box.hub[$].setAuxText(this.table[this.pos]?.[0].length)[$].setPreedit(this.preedit)
+        let candidates = this.size ? this.table.slice(this.addr, this.addr + this.size).map(x => x.shrink) : [_('Empty history.')];
+        this.$src.box.hub[$].setPreedit(this.preedit, this.table[this.pos]?.text.length)
             ._candidateArea[$].setCandidates(indices, candidates, this.pos % this[K.CLPS], this.size)
             .updateButtons(false, this.page, Math.ceil(this.table.length / this[K.CLPS]));
     }
 
     commit(index, copy) {
         this.$src.box.dispel();
-        let text = this.table[index]?.at(0);
-        if(copy || this.defocus) text && F.copy(text);
+        let text = this.table[index]?.text;
+        if(!text) return;
+        if(copy) F.copy(text);
         else this.$src.put.revive(text);
     }
 
@@ -353,11 +413,10 @@ class ClipHistory extends F.Mortal {
     }
 
     updatePreedit(preedit) {
-        this[$].preedit(preedit)[$]
-            .table(preedit ? this.db.reduce((p, x) => {
-                let seek = T.search(preedit, x[2]);
-                return seek ? p[$].push([seek, x]) : p;
-            }, []).sort(([[a, b]], [[m, n]]) => b - n || a - m).map(x => x[1]) : [...this.db]).updatePos(0);
+        this[$].preedit(preedit)[$].table(preedit ? this.db.reduce((p, x) => {
+            let seek = T.search(preedit, x.search);
+            return seek ? p[$].push([seek, x]) : p;
+        }, []).sort(([[a, b]], [[m, n]]) => b - n || a - m).map(x => x[1]) : [...this.db]).updatePos(0);
     }
 }
 
@@ -407,12 +466,13 @@ class SlugSearch extends F.Mortal {
 class IBusTweaker extends F.Mortal {
     $bindSettings(gset) {
         let tweaks = [
-            [K.APP,  SlugSearch],
-            [K.ATSW, InputMode],
-            [K.PBTN, PageButton],
-            [K.CLP,  ClipHistory],
-            [K.FNT,  FontSetting],
-            [K.THM,  PresetTheme],
+            [K.IPM, InputMode],
+            [K.APP, SlugSearch],
+            [K.BTN, PageButton],
+            [K.CLP, ClipHistory],
+            [K.FNT, FontSetting],
+            [K.FGA, FgAttribute],
+            [K.THM, PresetTheme],
         ];
         this.$set = new F.Setting(gset, this, tweaks.map(([k]) => [k, null, x => this.$src[k].toggle(x)]));
         this.$src = F.Source.tie(this, Object.fromEntries(tweaks.map(([k, v]) => [k, F.Source.new(() => new v(this.$set), this[k])])));

@@ -25,6 +25,10 @@
       <default>false</default>
       <summary>enable clipboard history</summary>
     </key>
+    <key type="b" name="enable-fgcolor-attribute">
+      <default>false</default>
+      <summary>enable fgcolor attribute</summary>
+    </key>
     <key type="u" name="clip-history-page-size">
       <default>5</default>
       <range min="4" max="10"/>
