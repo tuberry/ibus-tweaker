@@ -294,7 +294,7 @@ class ClipHistory extends F.Mortal {
         if(type !== St.ClipboardType.CLIPBOARD || !src) return;
         F.paste().then(text => {
             let {db} = this;
-            let index = db.findIndex(x => x[0] === text);
+            let index = db.findIndex(x => x.text === text);
             if(index < 0) {
                 db.unshift(new Proxy({text}, {
                     get(t, p, r) {

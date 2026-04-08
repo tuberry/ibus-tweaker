@@ -63,7 +63,7 @@ msgstr "另以罗马化缩写搜索本地化应用"
 
 #: src/prefs.js:36
 msgid "_Fgcolor attribute"
-msgstr "前景色属性"
+msgstr "前景色属性(_F)"
 
 #: src/prefs.js:36
 msgid "Support for candidate styles such as comments"
