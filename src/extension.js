@@ -80,23 +80,23 @@ class InputMode extends F.Mortal {
         if(props) for(let i = 0, p; (p = props.get(i)); i++) if(p.key.startsWith('InputMode')) yield p;
     }
 
-    get(props) {
+    seek(props) {
         for(let p of this.enumerate(props)) {
             switch(p.propType) {
             case IBus.PropType.NORMAL: // ibus-libpinyin
             case IBus.PropType.TOGGLE: return p.symbol?.get_text(); // ibus-hangul
             case IBus.PropType.RADIO: if(p.state) return p.key.split('.').at(-1); break; // ibus-typing-booster
-            case IBus.PropType.MENU: return this.get(p.subProps); // ibus-typing-booster
+            case IBus.PropType.MENU: return this.seek(p.subProps); // ibus-typing-booster
             }
         }
     }
 
-    set(props, mode) {
+    sync(props, mode) {
         for(let p of this.enumerate(props)) {
             switch(p.propType) {
             case IBus.PropType.NORMAL:
             case IBus.PropType.TOGGLE: this.activate(p); break;
-            case IBus.PropType.MENU: return this.set(p.subProps, mode);
+            case IBus.PropType.MENU: return this.sync(p.subProps, mode);
             case IBus.PropType.RADIO: if(p.key.endsWith(mode)) this.activate(p); break;
             }
         }
@@ -107,7 +107,7 @@ class InputMode extends F.Mortal {
     }
 
     setDummy(dummy) {
-        this[$].dummy(dummy).toggle();
+        this.set({dummy}).toggle();
     }
 
     check(id, mode, set) {
@@ -119,10 +119,10 @@ class InputMode extends F.Mortal {
 
     toggle() {
         let {id, properties} = InputManager.currentSource;
-        let mode = this.get(properties) ?? '';
+        let mode = this.seek(properties) ?? '';
         if(this.check(id, mode)) this.modes.set(this.win, [id, mode]);
         this.win = this.dummy || global.display.focus_window?.wm_class;
-        if(this.check(id, mode, true)) this.set(properties, this.mode);
+        if(this.check(id, mode, true)) this.sync(properties, this.mode);
     }
 }
 
@@ -246,7 +246,7 @@ class ClipPopup extends BoxPointer.BoxPointer {
         let hbox = new St.BoxLayout()[$$](w => box.add_child(w));
         [this._preeditText, this._auxText] = [true, false].map(x => new St.Label({visible: true, xExpand: x, opacity: x ? 255 : 160})[$$](w => hbox.add_child(w)));
         this._candidateArea = new IBusArea.constructor()[$s].connect(hooks)[$$](w => box.add_child(w));
-        syncStyleClass(this[$].set_style(`max-width: ${ClipHistory.WIDTH / 2}em; ${IBusPopup.style}`), IBusPopup);
+        syncStyleClass(this[$].set_style(`max-width: ${ClipHistory.WIDTH / 2}em; ${IBusPopup.style ?? ''}`), IBusPopup);
         if(page) this._candidateArea._buttonBox[$].hide().set({show: T.nop, hide: T.nop});
         else this._candidateArea.setOrientation(IBus.Orientation.VERTICAL);
     }
@@ -275,14 +275,14 @@ class ClipHistory extends F.Mortal {
     }
 
     $buildSources() {
-        let box = F.Source.new(() => new ClipPopup(this[K.BTN], [
+        let kbd = F.Source.newKeyboard(),
+            box = F.Source.new(() => new ClipPopup(this[K.BTN], [
                 ['cursor-up', () => this.navigate(-1)],
                 ['cursor-down', () => this.navigate(1)],
                 ['next-page', () => this.navigate(this[K.CLPS])],
                 ['previous-page', () => this.navigate(-this[K.CLPS])],
                 ['candidate-clicked', (_a, x) => this.commit(this.addr + x)],
             ])[$].connect('captured-event', (...xs) => this.$onCapture(...xs))),
-            kbd = F.Source.newKeyboard(),
             put = F.Source.newTimer(x => [() => kbd.commit(x, this.focused), 30]),
             key = F.Source.newKeys(this.$set.hub, K.CKYS, () => this.summon(), true),
             csr = new Clutter.Actor({opacity: 0, x: 1, y: 1})[$$](x => Main.uiGroup.add_child(x)), // HACK: workaround for the cursor jumping
@@ -299,6 +299,7 @@ class ClipHistory extends F.Mortal {
                 db.unshift(new Proxy({text}, {
                     get(t, p, r) {
                         switch(p) {
+                        case 'glyphs': return (t[p] ??= T.glyphs(text, x => x + 1));
                         case 'search': return (t[p] ??= (x => x === text ? '' : x)(slugify(text))) || text;
                         case 'shrink': return (t[p] ??= (x => x === text ? '' : `${x}...`)(text
                                 .slice(0, ClipHistory.WIDTH).replace(/\n|\r/g, '\u{21b5}'))) || text;
@@ -356,9 +357,9 @@ class ClipHistory extends F.Mortal {
         this.focused = this.$src.kbd.focused();
         this.$src.box.summon();
         this.updatePreedit('');
-        let x, y, width, height;
-        if(this.focused) ({origin: {x, y}, size: {width, height}} = IBusPopup._dummyCursor.get_transformed_extents());
-        else [x, y] = global.get_pointer(), width = height = Meta.prefs_get_cursor_size();
+        let {origin: {x, y}, size: {width, height}} = IBusPopup._dummyCursor.get_transformed_extents();
+        let focused = global.display.focus_window?.get_frame_rect().contains_pointf(x, y);
+        if(!(this.focused || focused)) [x, y] = global.get_pointer(), width = height = Meta.prefs_get_cursor_size();
         this.$src.box.hub.summon(this.$src.csr[$].set_position(x, y)[$].set_size(width, height));
     }
 
@@ -373,11 +374,11 @@ class ClipHistory extends F.Mortal {
     }
 
     updatePos(pos) {
-        this[$].pos(pos)[$].page(Math.floor(this.pos / this[K.CLPS]))[$]
+        this.set({pos, page: Math.floor(pos / this[K.CLPS])})[$]
             .addr(this.page * this[K.CLPS])[$].size(Math.min(this[K.CLPS], this.table.length - this.addr));
         let indices = this.size ? ClipHistory.Indices.slice(0, this.size) : ['\u{2205}'];
         let candidates = this.size ? this.table.slice(this.addr, this.addr + this.size).map(x => x.shrink) : [_('Empty history.')];
-        this.$src.box.hub[$].setPreedit(this.preedit, this.table[this.pos]?.text.length)
+        this.$src.box.hub[$].setPreedit(this.preedit, this.table[this.pos]?.glyphs)
             ._candidateArea[$].setCandidates(indices, candidates, this.pos % this[K.CLPS], this.size)
             .updateButtons(false, this.page, Math.ceil(this.table.length / this[K.CLPS]));
     }
@@ -413,7 +414,7 @@ class ClipHistory extends F.Mortal {
     }
 
     updatePreedit(preedit) {
-        this[$].preedit(preedit)[$].table(preedit ? this.db.reduce((p, x) => {
+        this.set({preedit})[$].table(preedit ? this.db.reduce((p, x) => {
             let seek = T.search(preedit, x.search);
             return seek ? p[$].push([seek, x]) : p;
         }, []).sort(([[a, b]], [[m, n]]) => b - n || a - m).map(x => x[1]) : [...this.db]).updatePos(0);
@@ -431,7 +432,7 @@ class SlugSearch extends F.Mortal {
     $buildWidgets(host) {
         let map = charmap();
         this.$update(map);
-        this.acts = host._systemActions._actions.entries().flatMap(([k, {available, keywords}]) =>
+        this.acts = [...host._systemActions._actions].flatMap(([k, {available, keywords}]) =>
             available ? [[k, keywords.flatMap(w => /[^\p{ASCII}]/u.test(w) ? [slugify(w, map)] : [])]] : []);
     }
 

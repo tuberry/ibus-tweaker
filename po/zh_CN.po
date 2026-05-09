@@ -17,11 +17,11 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 
-#: src/ui.js:365
+#: src/ui.js:364
 msgid "Mismatched filetype"
 msgstr "文件类型不匹配"
 
-#: src/ui.js:482
+#: src/ui.js:481
 msgid "Click or press ENTER to apply changes"
 msgstr "单击或按回车应用更改"
 
@@ -114,7 +114,7 @@ msgstr "删除所有条目"
 msgid "%dC"
 msgstr "%d字"
 
-#: src/extension.js:379
+#: src/extension.js:380
 msgid "Empty history."
 msgstr "空空如也。"
 
