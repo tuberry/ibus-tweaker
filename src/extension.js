@@ -12,6 +12,7 @@ import Graphene from 'gi://Graphene';
 
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import * as AppDisplay from 'resource:///org/gnome/shell/ui/appDisplay.js';
+import * as AppFavorites from 'resource:///org/gnome/shell/ui/appFavorites.js';
 import * as BoxPointer from 'resource:///org/gnome/shell/ui/boxpointer.js';
 import * as ModalDialog from 'resource:///org/gnome/shell/ui/modalDialog.js';
 import * as LookingGlass from 'resource:///org/gnome/shell/ui/lookingGlass.js';
@@ -438,7 +439,9 @@ class SlugSearch extends F.Mortal {
 
     $update(map = charmap()) {
         let slug = x => x && /[^\p{ASCII}]/u.test(x) ? slugify(x, map) : '';
-        this.apps = SlugSearch.Apps.getAppInfos().reduce((p, app) => {
+        let appInfos = SlugSearch.Apps.getAppInfos();
+        let favApps = AppFavorites.getAppFavorites().getFavorites().map(a => a.get_app_info());
+        this.apps = [...new Map([...appInfos, ...favApps].map(a => [a.get_id(), a])).values()].reduce((p, app) => {
             let names = ['Name', 'GenericName', 'X-GNOME-FullName'].map(x => slug(app.get_locale_string(x)))[$]
                 .push(app.get_locale_string('Keywords')?.split(';').map(slug).filter(T.id).join(';') ?? '');
             if(names.some(T.id)) names[0] ||= app.get_string('Name').toLowerCase(), p.push([app.get_id(), names]);
