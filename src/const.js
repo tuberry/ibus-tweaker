@@ -13,5 +13,6 @@ export const Key = {
     THM:  'enable-preset-theme',
     CLPS: 'clip-history-page-size',
     FGA:  'enable-fgcolor-attribute',
+    FGC:  'custom-fgcolor-attribute',
     CKYS: 'ibus-tweaker-clip-history',
 };

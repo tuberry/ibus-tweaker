@@ -128,6 +128,12 @@ class InputMode extends F.Mortal {
 }
 
 class FgAttribute extends F.Mortal {
+    static RE = /^#[\da-f]{6}$/i;
+
+    $bindSettings(set) {
+        this.$set = set.tie(this, [K.FGC]);
+    }
+
     $buildSources() {
         this.$src = F.Source.tie(this, F.Source.newInjector([
             IBusArea, {setCandidates: (...xs) => this.setCandidates(...xs)},
@@ -156,10 +162,10 @@ class FgAttribute extends F.Mortal {
             let start = attr.get_start_index();
             if(attr.get_attr_type() !== IBus.AttrType.FOREGROUND || start < cursor) continue;
             let end = attr.get_end_index(),
-                color = attr.get_value().toString(16).padStart(6, '0'),
+                color = FgAttribute.RE.test(this[K.FGC]) ? this[K.FGC] : `#${attr.get_value().toString(16).padStart(6, '0')}`,
                 text = T.esc(utf8.take(start - cursor).toArray().join('')),
                 span = T.esc(utf8.take((cursor = end) - start).toArray().join(''));
-            mark += `${text}<span fgcolor="#${color}">${span}</span>`;
+            mark += `${text}<span fgcolor="${color}">${span}</span>`;
         }
         if(mark) F.marks(label, mark + T.esc(utf8.toArray().join('')));
     }

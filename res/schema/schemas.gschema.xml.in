@@ -47,6 +47,10 @@
       <default>"Sans 14"</default>
       <summary>custom font name</summary>
     </key>
+    <key type="s" name="custom-fgcolor-attribute">
+      <default>""</default>
+      <summary>custom foreground color</summary>
+    </key>
     <key type="as" name="ibus-tweaker-clip-history">
       <default><![CDATA[['<Super>semicolon']]]></default>
       <summary>clip history shortcut</summary>
