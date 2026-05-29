@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: gnome-shell-extension-ibus-tweaker 35\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-05-26 11:41+0800\n"
+"POT-Creation-Date: 2021-08-18 14:09+0800\n"
 "PO-Revision-Date: 2021-08-18 14:09+0800\n"
 "Last-Translator: Automatically generated\n"
 "Language-Team: none\n"
@@ -17,114 +17,113 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 
-#: src/ui.js:364
+#: src/ui.js:379
 msgid "Mismatched filetype"
 msgstr "文件类型不匹配"
 
-#: src/ui.js:481
+#: src/ui.js:559
 msgid "Click or press ENTER to apply changes"
 msgstr "单击或按回车应用更改"
 
-#: src/prefs.js:21
-msgid "Custom foreground color"
-msgstr "自定义前景色"
-
-#: src/prefs.js:40
-msgid "Use original foreground color"
-msgstr "使用原始前景色"
-
-#: src/prefs.js:71
+#: src/prefs.js:26
 msgid "Page size"
 msgstr "页面容量"
 
-#: src/prefs.js:72
+#: src/prefs.js:27
+msgid "Custom foreground color"
+msgstr "自定义前景色"
+
+#: src/prefs.js:28
 msgid "System"
 msgstr "系统"
 
-#: src/prefs.js:72
+#: src/prefs.js:28
 msgid "Light"
 msgstr "亮色"
 
-#: src/prefs.js:72
+#: src/prefs.js:28
 msgid "Dark"
 msgstr "暗色"
 
-#: src/prefs.js:78
+#: src/prefs.js:34
 msgid "_Hide page buttons"
 msgstr "隐藏页按钮(_H)"
 
-#: src/prefs.js:79
+#: src/prefs.js:35
 msgid "_Autoswitch input mode"
 msgstr "切输入模式(_A)"
 
-#: src/prefs.js:79
+#: src/prefs.js:35
 msgid "Remember the input mode for each application"
 msgstr "记住每个应用的输入模式"
 
-#: src/prefs.js:80
+#: src/prefs.js:36
 msgid "_Slug app search"
 msgstr "搜应用别名(_S)"
 
-#: src/prefs.js:80
+#: src/prefs.js:36
 msgid "Also search for localized apps in Romanized acronyms"
 msgstr "另以罗马化缩写搜索本地化应用"
 
-#: src/prefs.js:81
+#: src/prefs.js:37
 msgid "_Fgcolor attribute"
 msgstr "前景色属性(_F)"
 
-#: src/prefs.js:81
+#: src/prefs.js:37
 msgid "Support for candidate styles such as comments"
 msgstr "用于注释等候选项样式"
 
-#: src/prefs.js:82
+#: src/prefs.js:38
 msgid "_Preset theme"
 msgstr "预定义主题(_P)"
 
-#: src/prefs.js:82
+#: src/prefs.js:38
 msgid "Compact mode applicable mimetic theme"
 msgstr "单行模式适用的拟态主题"
 
-#: src/prefs.js:83
+#: src/prefs.js:39
 msgid "_Custom font"
 msgstr "自定义字体(_C)"
 
-#: src/prefs.js:84
+#: src/prefs.js:40
 msgid "C_lipboard history"
 msgstr "剪贴板历史(_L)"
 
-#: src/prefs.js:84
+#: src/prefs.js:40
 msgid "Help"
 msgstr "帮助"
 
-#: src/prefs.js:85
+#: src/prefs.js:41
 msgid "input digits"
 msgstr "输入数字"
 
-#: src/prefs.js:85
+#: src/prefs.js:41
 msgid "numeric keypad"
 msgstr "小键盘"
 
-#: src/prefs.js:86
+#: src/prefs.js:42
 msgid "copy current entry"
 msgstr "复制当前条目"
 
-#: src/prefs.js:87
+#: src/prefs.js:43
 msgid "delete current entry"
 msgstr "删除当前条目"
 
-#: src/prefs.js:88
+#: src/prefs.js:44
 msgid "delete all entries"
 msgstr "删除所有条目"
 
-#: src/extension.js:262
+#: src/extension.js:261
 #, javascript-format
 msgid "%dC"
 msgstr "%d字"
 
-#: src/extension.js:386
+#: src/extension.js:384
 msgid "Empty history."
 msgstr "空空如也。"
+
+#~ msgid "Use original foreground color"
+#~ msgstr "使用原始前景色"
 
 #~ msgid "📋: "
 #~ msgstr "📋: "

@@ -1,19 +1,18 @@
 # SPDX-FileCopyrightText: tuberry
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-gschema = configure_file(
+_deps = [] + configure_file(
   input: 'schemas.gschema.xml.in',
   output: '@0@.gschema.xml'.format(me['rdnn']),
   configuration: me,
+  install_dir: schema_dir,
 )
-
-install_data(gschema, install_dir: schema_dir)
 
 if target == 'system'
   gnome.post_install(glib_compile_schemas: true)
 elif target == 'local'
   custom_target(
-    depend_files: [gschema],
+    depend_files: _deps,
     output: 'gschemas.compiled',
     build_by_default: true,
     build_always_stale: true,

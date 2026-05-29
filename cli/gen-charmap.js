@@ -15,6 +15,11 @@ T.decode(table).split('\n').forEach(line => {
     end = Math.max(code, end);
     map.set(code, alpha);
 });
+
+[ // erratum
+    ['乐', 'y'], // 音乐
+].forEach(([c, a]) => map.set(c.codePointAt(0), a));
 for(let x of GLib.CSET_A_2_Z) map.set(x.codePointAt(0), x.toLowerCase());
 for(let i = 0; i <= end; i++) txt += map.get(i) ?? '\0';
+
 await T.fwrite(output, txt);

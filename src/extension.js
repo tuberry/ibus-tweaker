@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 import St from 'gi://St';
+import Cogl from 'gi://Cogl';
 import IBus from 'gi://IBus';
 import Meta from 'gi://Meta';
 import Pango from 'gi://Pango';
@@ -12,7 +13,6 @@ import Graphene from 'gi://Graphene';
 
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import * as AppDisplay from 'resource:///org/gnome/shell/ui/appDisplay.js';
-import * as AppFavorites from 'resource:///org/gnome/shell/ui/appFavorites.js';
 import * as BoxPointer from 'resource:///org/gnome/shell/ui/boxpointer.js';
 import * as ModalDialog from 'resource:///org/gnome/shell/ui/modalDialog.js';
 import * as LookingGlass from 'resource:///org/gnome/shell/ui/lookingGlass.js';
@@ -22,7 +22,7 @@ import * as F from './fubar.js';
 import {Key as K} from './const.js';
 
 const {_} = F;
-const {$, $$, $_, $s} = T;
+const {$, $_, $$} = T;
 
 const InputManager = Main.panel.statusArea.keyboard._inputSourceManager;
 const IBusManager = InputManager._ibusManager;
@@ -44,7 +44,7 @@ const PopupStyleClass = {
     bin: {child: {styleClass: ''}},
     _preeditText: {styleClass: ''},
     _auxText: {styleClass: ''},
-}[$$](x => syncStyleClass(x, IBusPopup, T.id, x));
+}[$_](x => syncStyleClass(x, IBusPopup, T.id, x));
 
 const charmap = () => T.fopen('resource:///org/gnome/shell/extensions/ibus-tweaker/alpha.txt').load_bytes(null)[0].get_data();
 const slugify = (txt, map = charmap()) => [...txt].map(x => (y => y === 0 ? x : String.fromCodePoint(y))(map[x.codePointAt(0)])).join('');
@@ -128,10 +128,8 @@ class InputMode extends F.Mortal {
 }
 
 class FgAttribute extends F.Mortal {
-    static RE = /^#[\da-f]{6}$/i;
-
     $bindSettings(set) {
-        this.$set = set.tie(this, [K.FGC]);
+        this.$set = set.tie(this, [[K.FGC, x => (([b, c]) => b && c.to_string())(Cogl.Color.from_string(x))]]);
     }
 
     $buildSources() {
@@ -162,7 +160,7 @@ class FgAttribute extends F.Mortal {
             let start = attr.get_start_index();
             if(attr.get_attr_type() !== IBus.AttrType.FOREGROUND || start < cursor) continue;
             let end = attr.get_end_index(),
-                color = FgAttribute.RE.test(this[K.FGC]) ? this[K.FGC] : `#${attr.get_value().toString(16).padStart(6, '0')}`,
+                color = this[K.FGC] || `#${attr.get_value().toString(16).padStart(6, '0')}`,
                 text = T.esc(utf8.take(start - cursor).toArray().join('')),
                 span = T.esc(utf8.take((cursor = end) - start).toArray().join(''));
             mark += `${text}<span fgcolor="${color}">${span}</span>`;
@@ -209,7 +207,7 @@ class PresetTheme extends F.Mortal {
     $buildSources() {
         F.Source.tie(this, F.Source.newInjector([IBusPopup, {get_theme_node: (...xs) => this.$align(...xs)}], true),
             new F.Source(() => syncStyleClass(IBusPopup, PopupStyleClass, x => x.replace(/candidate/g, 'ibus-tweaker-candidate')),
-                () => syncStyleClass(IBusPopup[$_].remove_style_class_name(this.dark, 'night'), PopupStyleClass), true));
+                () => syncStyleClass(IBusPopup[$$].remove_style_class_name(this.dark && [['night']]), PopupStyleClass), true));
         this.$update();
     }
 
@@ -249,10 +247,10 @@ class ClipPopup extends BoxPointer.BoxPointer {
     }
 
     $buildWidgets(page, hooks) {
-        let box = new St.BoxLayout({orientation: Clutter.Orientation.VERTICAL})[$$](w => this.bin.set_child(w));
-        let hbox = new St.BoxLayout()[$$](w => box.add_child(w));
-        [this._preeditText, this._auxText] = [true, false].map(x => new St.Label({visible: true, xExpand: x, opacity: x ? 255 : 160})[$$](w => hbox.add_child(w)));
-        this._candidateArea = new IBusArea.constructor()[$s].connect(hooks)[$$](w => box.add_child(w));
+        let box = new St.BoxLayout({orientation: Clutter.Orientation.VERTICAL})[$_](w => this.bin.set_child(w));
+        let hbox = new St.BoxLayout()[$_](w => box.add_child(w));
+        [this._preeditText, this._auxText] = [true, false].map(x => new St.Label({visible: true, xExpand: x, opacity: x ? 255 : 160})[$_](w => hbox.add_child(w)));
+        this._candidateArea = new IBusArea.constructor()[$$].connect(hooks)[$_](w => box.add_child(w));
         syncStyleClass(this[$].set_style(`max-width: ${ClipHistory.WIDTH / 2}em; ${IBusPopup.style ?? ''}`), IBusPopup);
         if(page) this._candidateArea._buttonBox[$].hide().set({show: T.nop, hide: T.nop});
         else this._candidateArea.setOrientation(IBus.Orientation.VERTICAL);
@@ -292,7 +290,7 @@ class ClipHistory extends F.Mortal {
             ])[$].connect('captured-event', (...xs) => this.$onCapture(...xs))),
             put = F.Source.newTimer(x => [() => kbd.commit(x, this.focused), 30]),
             key = F.Source.newKeys(this.$set.hub, K.CKYS, () => this.summon(), true),
-            csr = new Clutter.Actor({opacity: 0, x: 1, y: 1})[$$](x => Main.uiGroup.add_child(x)), // HACK: workaround for the cursor jumping
+            csr = new Clutter.Actor({opacity: 0, x: 1, y: 1})[$_](x => Main.uiGroup.add_child(x)), // HACK: workaround for the cursor jumping
             dog = F.Source.newHandler(global.display.get_selection(), 'owner-changed', (...xs) => this.$onClipboardChange(...xs));
         this.$src = F.Source.tie(this, {csr, box, put, kbd}, key, dog);
     }
@@ -304,13 +302,12 @@ class ClipHistory extends F.Mortal {
             let index = db.findIndex(x => x.text === text);
             if(index < 0) {
                 db.unshift(new Proxy({text}, {
-                    get(t, p, r) {
-                        switch(p) {
-                        case 'glyphs': return (t[p] ??= T.glyphs(text, x => x + 1));
-                        case 'search': return (t[p] ??= (x => x === text ? '' : x)(slugify(text))) || text;
-                        case 'shrink': return (t[p] ??= (x => x === text ? '' : `${x}...`)(text
-                                .slice(0, ClipHistory.WIDTH).replace(/\n|\r/g, '\u{21b5}'))) || text;
-                        default: return Reflect.get(t, p, r);
+                    get(t, k, r) {
+                        switch(k) {
+                        case 'glyphs': return (t[k] ??= T.glyphs(text, x => x + 1));
+                        case 'search': return (t[k] ??= (x => x === text ? '' : x)(slugify(text))) || text;
+                        case 'shrink': return (t[k] ??= (x => x === text ? '' : `${x}...`)(text.slice(0, ClipHistory.WIDTH).replace(/\n|\r/g, '\u{21b5}'))) || text;
+                        default: return Reflect.get(t, k, r);
                         }
                     },
                 }));
@@ -429,10 +426,8 @@ class ClipHistory extends F.Mortal {
 }
 
 class SlugSearch extends F.Mortal {
-    static Apps = Main.overview._overview._controls._appDisplay;
-
     $buildSources() {
-        F.Source.tie(this, F.Source.newHandler(this, SlugSearch.Apps, 'view-loaded', () => this.$update()),
+        F.Source.tie(this, F.Source.newHandler(this, Main.overview._overview._controls._appDisplay, 'view-loaded', () => this.$update()),
             F.Source.newInjector([AppDisplay.AppSearchProvider.prototype, {getInitialResultSet: (...xs) => this.search(...xs)}], true));
     }
 
@@ -444,10 +439,9 @@ class SlugSearch extends F.Mortal {
     }
 
     $update(map = charmap()) {
+        let apps = Main.overview._overview._controls._appDisplay;
         let slug = x => x && /[^\p{ASCII}]/u.test(x) ? slugify(x, map) : '';
-        let appInfos = SlugSearch.Apps.getAppInfos();
-        let favApps = AppFavorites.getAppFavorites().getFavorites().map(a => a.get_app_info());
-        this.apps = [...new Map([...appInfos, ...favApps].map(a => [a.get_id(), a])).values()].reduce((p, app) => {
+        this.apps = apps.getAppInfos().concat(apps._appFavorites.getFavorites().map(x => x.get_app_info())).reduce((p, app) => {
             let names = ['Name', 'GenericName', 'X-GNOME-FullName'].map(x => slug(app.get_locale_string(x)))[$]
                 .push(app.get_locale_string('Keywords')?.split(';').map(slug).filter(T.id).join(';') ?? '');
             if(names.some(T.id)) names[0] ||= app.get_string('Name').toLowerCase(), p.push([app.get_id(), names]);
@@ -466,7 +460,7 @@ class SlugSearch extends F.Mortal {
         let i, j, k;
         return items.flatMap(xs => xs.reduce((p, [id, ws]) => {
             i = Infinity;
-            if(terms.every(t => ws.findIndex(w => (k = w.indexOf(t)) >= 0)[$$](
+            if(terms.every(t => ws.findIndex(w => (k = w.indexOf(t)) >= 0)[$_](
                 x => { if(x < i) i = x, j = k; }) >= 0)) (p[i] ??= []).push([j, id]);
             return p;
         }, []).reduce((p, x) => (x && x.sort(([a], [b]) => a - b).forEach(y => p.push(y[1])), p), []));
