@@ -479,8 +479,14 @@ class IBusTweaker extends F.Mortal {
             [K.THM, PresetTheme],
         ];
         this.$set = new F.Setting(gset, this, tweaks.map(([k]) => [k, null, x => this.$src[k].toggle(x)]));
-        this.$src = F.Source.tie(this, Object.fromEntries(tweaks.map(([k, v]) => [k, F.Source.new(() => new v(this.$set), this[k])])));
-    }
+        this.$src = F.Source.tie(this, Object.fromEntries(tweaks.map(([k, v]) => [k, F.Source.new(() => new v(this.$set), this[k])])),
+            F.Source.newInjector([
+                IBusPopup, {_updateVisibility: (a, f, xs) => {
+                    f.apply(a, xs);
+                    if (a.visible)
+                        a.get_parent().set_child_above_sibling(a, null);
+                }}, // HACK: workaround for https://gitlab.gnome.org/GNOME/gnome-shell/-/merge_requests/4264
+            ], true));
 }
 
 export default class extends F.Extension { $klass = IBusTweaker; }
