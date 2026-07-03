@@ -487,6 +487,7 @@ class IBusTweaker extends F.Mortal {
                         a.get_parent().set_child_above_sibling(a, null);
                 }}, // HACK: workaround for https://gitlab.gnome.org/GNOME/gnome-shell/-/merge_requests/4264
             ], true));
+    }
 }
 
 export default class extends F.Extension { $klass = IBusTweaker; }
