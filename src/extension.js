@@ -47,10 +47,10 @@ const PopupStyleClass = {
 }[$_](x => syncStyleClass(x, IBusPopup, T.id, x));
 
 const charmap = () => T.fopen('resource:///org/gnome/shell/extensions/ibus-tweaker/alpha.txt').load_bytes(null)[0].get_data();
-const slugify = (txt, map = charmap()) => [...txt].map(x => (y => y === 0 ? x : String.fromCodePoint(y))(map[x.codePointAt(0)])).join('');
+const slugify = (txt, map = charmap()) => [...txt].map(x => (y => y ? String.fromCodePoint(y) : x)(map[x.codePointAt(0)])).join('');
 
 function syncStyleClass(aim, src, func = T.id, tpl = PopupStyleClass) {
-    return T.Y(f => (a, b, c) => Object.keys(c).forEach(k => c[k] instanceof Object
+    return T.Y(f => (a, b, c) => Object.keys(c).forEach(k => typeof c[k] === 'object'
         ? a[k] && f(a[k], b[k], c[k]) : k === 'styleClass' && (a[k] = func(b[k]))))(aim, src, tpl);
 }
 
@@ -61,20 +61,16 @@ class InputMode extends F.Mortal {
 
     $buildSources() {
         F.Source.tie(this,
-            F.Source.newHandler(global, 'shutdown', () => this.save(), this, 'destroy', () => this.save(),
+            new F.Source.Handler(this, 'destroy', () => this.$set.set(K.IPMS, Object.fromEntries(this.modes)),
                 global.display, 'notify::focus-window', () => this.toggle(), GObject.ConnectFlags.AFTER,
                 Main.overview, 'hidden', () => this.setDummy(), 'shown', () => this.setDummy('$overview')),
-            F.Source.newInjector([ModalDialog.ModalDialog.prototype, {
+            new F.Source.Injector([ModalDialog.ModalDialog.prototype, {
                 open: (a, f, xs) => { this.setDummy('$modal-dialog'); return f.apply(a, xs); },
                 close: (a, f, xs) => { this.setDummy(Main.lookingGlass?.isOpen ? '$looking-glass' : ''); return f.apply(a, xs); },
             }, LookingGlass.LookingGlass.prototype, {
                 open: (a, f, xs) => { this.setDummy('$looking-glass'); return f.apply(a, xs); },
                 close: (a, f, xs) => { this.setDummy(); return f.apply(a, xs); },
             }], true));
-    }
-
-    save() {
-        this.$set.set(K.IPMS, Object.fromEntries(this.modes));
     }
 
     *enumerate(props) {
@@ -133,7 +129,7 @@ class FgAttribute extends F.Mortal {
     }
 
     $buildSources() {
-        this.$src = F.Source.tie(this, F.Source.newInjector([
+        this.$src = F.Source.tie(this, new F.Source.Injector([
             IBusArea, {setCandidates: (...xs) => this.setCandidates(...xs)},
             IBus.LookupTable.prototype, {is_cursor_visible: (a, f, xs) => [f.apply(a, xs), a]},
         ], true));
@@ -151,17 +147,17 @@ class FgAttribute extends F.Mortal {
         }
     }
 
-    sync(label, ibus_text) {
-        let attrs = ibus_text?.get_attributes();
+    sync(label, ibusText) {
+        let attrs = ibusText?.get_attributes();
         if(!attrs) return;
         let mark = '';
-        let utf8 = Iterator.from(ibus_text.get_text()); // String.slice - UTF-16 & IBus.Text - g_utf8_strlen, so iter codepoints here
+        let utf8 = Iterator.from(ibusText.get_text()); // String.slice - UTF-16 & IBus.Text - g_utf8_strlen, so iter codepoints here
         for(let cursor = 0, i = 0, attr; (attr = attrs.get(i)); i++) {
             let start = attr.get_start_index();
             if(attr.get_attr_type() !== IBus.AttrType.FOREGROUND || start < cursor) continue;
             let end = attr.get_end_index(),
                 color = this[K.FGC] || `#${attr.get_value().toString(16).padStart(6, '0')}`,
-                text = T.esc(utf8.take(start - cursor).toArray().join('')),
+                text = T.esc(utf8.take(start - cursor).toArray().join('')), // NOTE: https://github.com/tc39/proposal-iterator-join
                 span = T.esc(utf8.take((cursor = end) - start).toArray().join(''));
             mark += `${text}<span fgcolor="${color}">${span}</span>`;
         }
@@ -189,7 +185,7 @@ font-size: ${desc.get_size() / Pango.SCALE}${desc.get_size_is_absolute() ? 'px' 
 class PageButton extends F.Mortal { // HACK: workaround for css without `display: none` support
     $buildSources() {
         IBusArea._buttonBox.hide();
-        F.Source.tie(this, F.Source.newInjector([IBusArea._buttonBox, {show: T.nop, hide: T.nop}], true));
+        F.Source.tie(this, new F.Source.Injector([IBusArea._buttonBox, {show: T.nop, hide: T.nop}], true));
     }
 }
 
@@ -199,13 +195,13 @@ class PresetTheme extends F.Mortal {
     aligned = new WeakSet();
 
     $bindSettings(set) {
-        this.$setIF = new F.Setting('org.gnome.desktop.interface', this,
+        this.$setIF = new F.Setting('org.gnome.desktop.interface').tie(this,
             [[['scheme', 'color-scheme'], x => x === 'prefer-dark', () => this.$update()]]);
         this.$set = set.tie(this, [K.STL], null, () => this.$update());
     }
 
     $buildSources() {
-        F.Source.tie(this, F.Source.newInjector([IBusPopup, {get_theme_node: (...xs) => this.$align(...xs)}], true),
+        F.Source.tie(this, new F.Source.Injector([IBusPopup, {get_theme_node: (...xs) => this.$align(...xs)}], true),
             new F.Source(() => syncStyleClass(IBusPopup, PopupStyleClass, x => x.replace(/candidate/g, 'ibus-tweaker-candidate')),
                 () => syncStyleClass(IBusPopup[$$].remove_style_class_name(this.dark && [['night']]), PopupStyleClass), true));
         this.$update();
@@ -219,10 +215,10 @@ class PresetTheme extends F.Mortal {
     }
 
     $align(a, f, xs) {
-        let theme = f.apply(a, xs);
-        if(!this.aligned.has(theme)) {
-            this.aligned.add(theme);
-            T.inject(theme, 'get_length', (o, k) => (...ys) => {
+        let ret = f.apply(a, xs);
+        if(!this.aligned.has(ret)) {
+            this.aligned.add(ret);
+            T.inject(ret, 'get_length', (o, k) => (...ys) => {
                 if(ys[0] === '-arrow-border-radius') {
                     let {x} = IBusArea._candidateBoxes[0]._candidateLabel.apply_relative_transform_to_point(IBusPopup, Graphene.point3d_zero());
                     if(Number.isFinite(x)) return x / 2;
@@ -230,7 +226,7 @@ class PresetTheme extends F.Mortal {
                 return k.apply(o, ys);
             });
         }
-        return theme;
+        return ret;
     }
 }
 
@@ -263,8 +259,7 @@ class ClipPopup extends BoxPointer.BoxPointer {
 
     summon(cursor) {
         this._candidateArea.visible = true;
-        this[$].setPosition(cursor, 0)[$]
-            .open(BoxPointer.PopupAnimation.NONE)
+        this[$].setPosition(cursor, 0)[$].open(BoxPointer.PopupAnimation.NONE)
             .get_parent().set_child_above_sibling(this, null);
         Main.pushModal(this, {actionMode: Shell.ActionMode.POPUP});
     }
@@ -280,18 +275,19 @@ class ClipHistory extends F.Mortal {
     }
 
     $buildSources() {
-        let kbd = F.Source.newKeyboard(),
-            box = F.Source.new(() => new ClipPopup(this[K.BTN], [
+        let kbd = new F.Source.Keyboard(),
+            box = new F.Source(() => new ClipPopup(this[K.BTN], [
                 ['cursor-up', () => this.navigate(-1)],
                 ['cursor-down', () => this.navigate(1)],
                 ['next-page', () => this.navigate(this[K.CLPS])],
                 ['previous-page', () => this.navigate(-this[K.CLPS])],
                 ['candidate-clicked', (_a, x) => this.commit(this.addr + x)],
-            ])[$].connect('captured-event', (...xs) => this.$onCapture(...xs))),
-            put = F.Source.newTimer(x => [() => kbd.commit(x, this.focused), 30]),
-            key = F.Source.newKeys(this.$set.hub, K.CKYS, () => this.summon(), true),
+            ])[$$].add_action([new Clutter.KeyController()[$].connect('key-press', (...xs) => this.$onKeyPress(...xs)),
+                new Clutter.ClickGesture({recognizeOnPress: true})[$].connect('recognize', () => this.$src.box.dispel())])),
+            put = new F.Source.Timer(x => [() => kbd.commit(x, this.focused), 30]),
+            key = new F.Source.Keys(this.$set.hub, K.CKYS, () => this.summon(), true),
             csr = new Clutter.Actor({opacity: 0, x: 1, y: 1})[$_](x => Main.uiGroup.add_child(x)), // HACK: workaround for the cursor jumping
-            dog = F.Source.newHandler(global.display.get_selection(), 'owner-changed', (...xs) => this.$onClipboardChange(...xs));
+            dog = new F.Source.Handler(global.display.get_selection(), 'owner-changed', (...xs) => this.$onClipboardChange(...xs));
         this.$src = F.Source.tie(this, {csr, box, put, kbd}, key, dog);
     }
 
@@ -304,7 +300,7 @@ class ClipHistory extends F.Mortal {
                 db.unshift(new Proxy({text}, {
                     get(t, k, r) {
                         switch(k) {
-                        case 'glyphs': return (t[k] ??= T.glyphs(text, x => x + 1));
+                        case 'glyphs': return (t[k] ??= T.glyphs(text));
                         case 'search': return (t[k] ??= (x => x === text ? '' : x)(slugify(text))) || text;
                         case 'shrink': return (t[k] ??= (x => x === text ? '' : `${x}...`)(text.slice(0, ClipHistory.WIDTH).replace(/\n|\r/g, '\u{21b5}'))) || text;
                         default: return Reflect.get(t, k, r);
@@ -318,47 +314,39 @@ class ClipHistory extends F.Mortal {
         }).catch(T.nop);
     }
 
-    $onCapture(actor, event) {
-        let type = event.type();
-        if(type === Clutter.EventType.KEY_PRESS) {
-            let key = event.get_key_symbol();
-            if(key >= Clutter.KEY_exclam && key <= Clutter.KEY_asciitilde) {
-                if(key === Clutter.KEY_backslash) this.commit(this.pos, true);
-                else if(key >= Clutter.KEY_0 && key <= Clutter.KEY_9) this.select(String.fromCodePoint(key));
-                else this.updatePreedit(this.preedit + String.fromCodePoint(key).toLocaleLowerCase());
-            } else if(key >= Clutter.KEY_KP_0 && key <= Clutter.KEY_KP_9) {
-                this.updatePreedit(this.preedit + (key - Clutter.KEY_KP_0));
-            } else {
-                switch(key) {
-                case Clutter.KEY_space:
-                case Clutter.KEY_Return:
-                case Clutter.KEY_KP_Enter:
-                case Clutter.KEY_ISO_Enter: this.commit(this.pos); break;
-                case Clutter.KEY_backslash: this.commit(this.pos, true); break;
-                case Clutter.KEY_Left:
-                case Clutter.KEY_Page_Up:   this.navigate(-this[K.CLPS]); break;
-                case Clutter.KEY_Right:
-                case Clutter.KEY_Page_Down: this.navigate(this[K.CLPS]); break;
-                case Clutter.KEY_Up:        this.navigate(-1); break;
-                case Clutter.KEY_Down:      this.navigate(1); break;
-                case Clutter.KEY_Delete:    this.delete(event.get_state() & Clutter.ModifierType.SHIFT_MASK); break;
-                case Clutter.KEY_BackSpace: this.updatePreedit(this.preedit.slice(0, -1)); break;
-                case Clutter.KEY_Shift_L: break;
-                default: this.$src.box.dispel(); break;
-                }
+    $onKeyPress(actor) {
+        let [, key] = actor.get_key();
+        if(key >= Clutter.KEY_exclam && key <= Clutter.KEY_asciitilde) {
+            if(key === Clutter.KEY_backslash) this.commit(this.pos, true);
+            else if(key >= Clutter.KEY_0 && key <= Clutter.KEY_9) this.select(String.fromCodePoint(key));
+            else this.updatePreedit(this.preedit + String.fromCodePoint(key).toLocaleLowerCase());
+        } else if(key >= Clutter.KEY_KP_0 && key <= Clutter.KEY_KP_9) {
+            this.updatePreedit(this.preedit + (key - Clutter.KEY_KP_0));
+        } else {
+            switch(key) {
+            case Clutter.KEY_space:
+            case Clutter.KEY_Return:
+            case Clutter.KEY_KP_Enter:
+            case Clutter.KEY_ISO_Enter: this.commit(this.pos); break;
+            case Clutter.KEY_backslash: this.commit(this.pos, true); break;
+            case Clutter.KEY_Left:
+            case Clutter.KEY_Page_Up:   this.navigate(-this[K.CLPS]); break;
+            case Clutter.KEY_Right:
+            case Clutter.KEY_Page_Down: this.navigate(this[K.CLPS]); break;
+            case Clutter.KEY_Up:        this.navigate(-1); break;
+            case Clutter.KEY_Down:      this.navigate(1); break;
+            case Clutter.KEY_Delete:    this.delete(F.held(actor, Clutter.ModifierType.SHIFT_MASK)); break;
+            case Clutter.KEY_BackSpace: this.updatePreedit(this.preedit.slice(0, -1)); break;
+            case Clutter.KEY_Shift_L: break;
+            default: this.$src.box.dispel(); break;
             }
-            return Clutter.EVENT_STOP;
-        } else if((type === Clutter.EventType.BUTTON_PRESS || type === Clutter.EventType.TOUCH_BEGIN) &&
-                  !actor.contains(global.stage.get_event_actor(event))) {
-            this.$src.box.dispel();
-            return Clutter.EVENT_STOP;
         }
-        return Clutter.EVENT_PROPAGATE;
+        return Clutter.EVENT_STOP;
     }
 
     summon() {
         if(this.$src.box.active) return;
-        this.focused = this.$src.kbd.focused();
+        this.focused = F.Source.Keyboard.focused;
         this.$src.box.summon();
         this.updatePreedit('');
         let {origin: {x, y}, size: {width, height}} = IBusPopup._dummyCursor.get_transformed_extents();
@@ -395,9 +383,7 @@ class ClipHistory extends F.Mortal {
         else this.$src.put.revive(text);
     }
 
-    get db() {
-        return ClipHistory.DB;
-    }
+    get db() { return ClipHistory.DB; }
 
     delete(all) {
         if(all) {
@@ -421,14 +407,14 @@ class ClipHistory extends F.Mortal {
         this.set({preedit})[$].table(preedit ? this.db.reduce((p, x) => {
             let seek = T.search(preedit, x.search);
             return seek ? p[$].push([seek, x]) : p;
-        }, []).sort(([[a, b]], [[m, n]]) => b - n || a - m).map(x => x[1]) : [...this.db]).updatePos(0);
+        }, []).sort(([[a, m]], [[b, n]]) => m - n || a - b).map(x => x[1]) : [...this.db]).updatePos(0);
     }
 }
 
 class SlugSearch extends F.Mortal {
     $buildSources() {
-        F.Source.tie(this, F.Source.newHandler(this, Main.overview._overview._controls._appDisplay, 'view-loaded', () => this.$update()),
-            F.Source.newInjector([AppDisplay.AppSearchProvider.prototype, {getInitialResultSet: (...xs) => this.search(...xs)}], true));
+        F.Source.tie(this, new F.Source.Handler(this, Main.overview._overview._controls._appDisplay, 'view-loaded', () => this.$update()),
+            new F.Source.Injector([AppDisplay.AppSearchProvider.prototype, {getInitialResultSet: (...xs) => this.search(...xs)}], true));
     }
 
     $buildWidgets(host) {
@@ -439,12 +425,12 @@ class SlugSearch extends F.Mortal {
     }
 
     $update(map = charmap()) {
-        let apps = Main.overview._overview._controls._appDisplay;
         let slug = x => x && /[^\p{ASCII}]/u.test(x) ? slugify(x, map) : '';
-        this.apps = apps.getAppInfos().concat(apps._appFavorites.getFavorites().map(x => x.get_app_info())).reduce((p, app) => {
-            let names = ['Name', 'GenericName', 'X-GNOME-FullName'].map(x => slug(app.get_locale_string(x)))[$]
-                .push(app.get_locale_string('Keywords')?.split(';').map(slug).filter(T.id).join(';') ?? '');
-            if(names.some(T.id)) names[0] ||= app.get_string('Name').toLowerCase(), p.push([app.get_id(), names]);
+        this.apps = F.apps().reduce((p, app) => {
+            let info = app.get_app_info();
+            let names = ['Name', 'GenericName', 'X-GNOME-FullName'].map(x => slug(info.get_locale_string(x)))[$]
+                .push(info.get_locale_string('Keywords')?.split(';').map(slug).filter(T.id).join(';') ?? '');
+            if(names.some(T.id)) names[0] ||= info.get_string('Name').toLowerCase(), p.push([info.get_id(), names]);
             return p;
         }, []);
     }
@@ -453,17 +439,18 @@ class SlugSearch extends F.Mortal {
         let ret = await func.apply(host, args);
         if(!this.acts) this.$buildWidgets(host);
         let neo = this.match([this.apps, this.acts], args[0]);
-        return neo.length ? ret.concat(neo) : ret;
+        return neo.length ? ret.length ? [...new Set([...ret, ...neo])] : neo : ret;
     }
 
     match(items, terms) {
-        let i, j, k;
+        terms = terms.map(x => x.toLowerCase());
+        let i, j, k, usage = Shell.AppUsage.get_default();
         return items.flatMap(xs => xs.reduce((p, [id, ws]) => {
             i = Infinity;
             if(terms.every(t => ws.findIndex(w => (k = w.indexOf(t)) >= 0)[$_](
-                x => { if(x < i) i = x, j = k; }) >= 0)) (p[i] ??= []).push([j, id]);
+                x => { if(x < i) i = x, j = k; }) >= 0)) (p[i] ??= []).push([id, j]);
             return p;
-        }, []).reduce((p, x) => (x && x.sort(([a], [b]) => a - b).forEach(y => p.push(y[1])), p), []));
+        }, []).reduce((p, x) => (x && x.sort(([a, m], [b, n]) => usage.compare(a, b) || m - n).forEach(([y]) => p.push(y)), p), []));
     }
 }
 
@@ -478,15 +465,10 @@ class IBusTweaker extends F.Mortal {
             [K.FGA, FgAttribute],
             [K.THM, PresetTheme],
         ];
-        this.$set = new F.Setting(gset, this, tweaks.map(([k]) => [k, null, x => this.$src[k].toggle(x)]));
-        this.$src = F.Source.tie(this, Object.fromEntries(tweaks.map(([k, v]) => [k, F.Source.new(() => new v(this.$set), this[k])])),
-            F.Source.newInjector([
-                IBusPopup, {_updateVisibility: (a, f, xs) => {
-                    f.apply(a, xs);
-                    if (a.visible)
-                        a.get_parent().set_child_above_sibling(a, null);
-                }}, // HACK: workaround for https://gitlab.gnome.org/GNOME/gnome-shell/-/merge_requests/4264
-            ], true));
+        this.$set = new F.Setting(gset).tie(this, tweaks.map(([k]) => [k, null, x => this.$src[k].toggle(x)]));
+        this.$src = F.Source.tie(this, Object.fromEntries(tweaks.map(([k, v]) => [k, new F.Source(() => new v(this.$set), this[k])])),
+            new F.Source.Injector([IBusPopup, [['_updateVisibility', // HACK: workaround for https://gitlab.gnome.org/GNOME/gnome-shell/-/merge_requests/4264
+                (a, f, xs) => { f.apply(a, xs); if(a.visible) a.get_parent().set_child_above_sibling(a, null); }]]], true));
     }
 }
 

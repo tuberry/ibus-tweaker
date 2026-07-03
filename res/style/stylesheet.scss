@@ -79,7 +79,7 @@ $variant: 'dark';
 .night .#{$pfx}-popup-content {
     @include color;
     border-color: $outer_borders_color;
-    box-shadow-color: $shadow_color;
+    box-shadow: 0 $pad / 2 $pad 0 $shadow_color;
 }
 
 .night .#{$pfx}-box {

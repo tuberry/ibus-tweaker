@@ -12,14 +12,12 @@ _alpha = 'alpha.txt' # NOTE: -5kb if https://gitlab.gnome.org/GNOME/glib/-/issue
 _gres = {'path': me['path'], 'alpha': _alpha}
 
 _deps = [custom_target(
+  input: ['../../cli/gen-charmap.js', 'anyascii.tsv'],
   output: _alpha,
-  build_by_default: true,
-  build_always_stale: true,
   command: [
     find_program('gjs'),
     '-m',
-    '@SOURCE_ROOT@'/ 'cli/gen-charmap.js',
-    '@CURRENT_SOURCE_DIR@' / 'anyascii.tsv',
+    '@INPUT@',
     '@OUTDIR@' / _alpha,
   ],
 )]

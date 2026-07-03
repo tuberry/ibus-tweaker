@@ -17,11 +17,11 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 
-#: src/ui.js:379
+#: src/ui.js:375
 msgid "Mismatched filetype"
 msgstr "文件类型不匹配"
 
-#: src/ui.js:559
+#: src/ui.js:564
 msgid "Click or press ENTER to apply changes"
 msgstr "单击或按回车应用更改"
 
@@ -102,23 +102,23 @@ msgid "numeric keypad"
 msgstr "小键盘"
 
 #: src/prefs.js:42
-msgid "copy current entry"
-msgstr "复制当前条目"
+msgid "copy entry"
+msgstr "复制条目"
 
 #: src/prefs.js:43
-msgid "delete current entry"
-msgstr "删除当前条目"
+msgid "delete entry"
+msgstr "删除条目"
 
 #: src/prefs.js:44
 msgid "delete all entries"
 msgstr "删除所有条目"
 
-#: src/extension.js:261
+#: src/extension.js:257
 #, javascript-format
 msgid "%dC"
 msgstr "%d字"
 
-#: src/extension.js:384
+#: src/extension.js:372
 msgid "Empty history."
 msgstr "空空如也。"
 

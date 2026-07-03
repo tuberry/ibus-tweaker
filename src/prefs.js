@@ -39,8 +39,8 @@ class IBusTweakerPrefs extends UI.Page {
             [K.FNT, [_('_Custom font')], K.FNTS],
             [K.CLP, [_('C_lipboard history')], new UI.Help(({h, k}) => [h(_('Help')), [
                 [_('input digits'), _('numeric keypad')],
-                [_('copy current entry'), k('backslash')],
-                [_('delete current entry'), k('Delete')],
+                [_('copy entry'), k('backslash')],
+                [_('delete entry'), k('Delete')],
                 [_('delete all entries'), k('<shift>Delete')],
             ]]), K.CLPS, K.CKYS],
         ];
