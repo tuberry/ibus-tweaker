@@ -55,13 +55,16 @@ function syncStyleClass(aim, src, func = T.id, tpl = PopupStyleClass) {
 }
 
 class InputMode extends F.Mortal {
+    wm = new WeakMap();
+    wr = new WeakRef(this);
+
     $bindSettings(set) {
-        this.$set = set.tie(this, [[['modes', K.IPMS], x => new Map(Object.entries(x)), null, true]]);
+        this.$set = set.tie(this, [[['mode', K.IPMS], x => new Map(Object.entries(x)), null, true]]);
     }
 
     $buildSources() {
         F.Source.tie(this,
-            new F.Source.Handler(this, 'destroy', () => this.$set.set(K.IPMS, Object.fromEntries(this.modes)),
+            new F.Source.Handler(this, 'destroy', () => this.$set.set(K.IPMS, Object.fromEntries(this.mode)),
                 global.display, 'notify::focus-window', () => this.toggle(), GObject.ConnectFlags.AFTER,
                 Main.overview, 'hidden', () => this.setDummy(), 'shown', () => this.setDummy('$overview')),
             new F.Source.Injector([ModalDialog.ModalDialog.prototype, {
@@ -74,7 +77,7 @@ class InputMode extends F.Mortal {
     }
 
     *enumerate(props) {
-        if(props) for(let i = 0, p; (p = props.get(i)); i++) if(p.key.startsWith('InputMode')) yield p;
+        if(props) for(let i = 0, p; p = props.get(i); i++) if(p.key.startsWith('InputMode')) yield p;
     }
 
     seek(props) {
@@ -104,22 +107,29 @@ class InputMode extends F.Mortal {
     }
 
     setDummy(dummy) {
-        this.set({dummy}).toggle();
-    }
-
-    check(id, mode, set) {
-        if(!this.win) return false;
-        if(!this.modes.has(this.win)) this.modes.set(this.win, [id, mode]);
-        [this.id, this.mode] = this.modes.get(this.win);
-        return set ? this.mode !== mode && this.id === id : this.mode !== mode || this.id !== id;
+        this.set({wmClass: dummy}).toggle();
     }
 
     toggle() {
-        let {id, properties} = InputManager.currentSource;
-        let mode = this.seek(properties) ?? '';
-        if(this.check(id, mode)) this.modes.set(this.win, [id, mode]);
-        this.win = this.dummy || global.display.focus_window?.wm_class;
-        if(this.check(id, mode, true)) this.sync(properties, this.mode);
+        let {id, properties} = InputManager.currentSource,
+            mode = this.seek(properties) ?? '',
+            ref = this.wr.deref(),
+            win = ref?.wmClass;
+        if(win) {
+            let value = [id, mode];
+            this.wm.set(ref, value);
+            this.mode.set(win, value);
+        }
+        ref = this.wmClass ? this : global.display.focusWindow;
+        this.wr = new WeakRef(ref || this);
+        if(!(win = ref?.wmClass)) return;
+        if(!this.wm.has(ref)) {
+            // this.wm.set(ref, this.mode.getOrInsert(win, [id, mode])); // NOTE: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Map/getOrInsert
+            if(!this.mode.has(win)) this.mode.set(win, [id, mode]);
+            this.wm.set(ref, this.mode.get(win));
+        }
+        let [i, m] = this.wmClass ? this.mode.get(win) : this.wm.get(ref);
+        if(i === id && m !== mode) this.sync(properties, m);
     }
 }
 

@@ -32,7 +32,7 @@ class IBusTweakerPrefs extends UI.Page {
     $buildUI() {
         return [
             [K.BTN, [_('_Hide page buttons')]],
-            [K.IPM, [_('_Autoswitch input mode'), _('Remember the input mode for each application')]],
+            [K.IPM, [_('_Autoswitch input mode'), _('Remember the input mode for each window')]],
             [K.APP, [_('_Slug app search'), _('Also search for localized apps in Romanized acronyms')]],
             [K.FGA, [_('_Fgcolor attribute'), _('Support for candidate styles such as comments')], K.FGC],
             [K.THM, [_('_Preset theme'), _('Compact mode applicable mimetic theme')], K.STL],

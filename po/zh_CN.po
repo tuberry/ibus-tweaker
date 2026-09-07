@@ -54,8 +54,8 @@ msgid "_Autoswitch input mode"
 msgstr "切输入模式(_A)"
 
 #: src/prefs.js:35
-msgid "Remember the input mode for each application"
-msgstr "记住每个应用的输入模式"
+msgid "Remember the input mode for each window"
+msgstr "记住各窗口的输入模式"
 
 #: src/prefs.js:36
 msgid "_Slug app search"
