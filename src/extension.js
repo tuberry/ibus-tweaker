@@ -280,6 +280,26 @@ class ClipHistory extends F.Mortal {
     static WIDTH = 50; // max display chars
     static Indices = '1234567890';
 
+    static shrink(text, limit = this.WIDTH) {
+        let ret = [];
+        for(let {segment: x} of new Intl.Segmenter().segment(text)) {
+            if(ret.length >= limit) {
+                ret.push('\u{2026}'); break;
+            } else if(/\n|\r/.test(x)) {
+                if(ret.at(-1) !== '\u{240d}') ret.push('\u{240d}');
+            } else if(/\s/.test(x)) {
+                switch(ret.at(-1)) {
+                case ' ': ret[ret.length - 1] = '\u{2420}'; break;
+                case '\u{2420}': break;
+                default: ret.push(' ');
+                }
+            } else {
+                ret.push(x);
+            }
+        }
+        return ret.join('');
+    }
+
     $bindSettings(set) {
         this.$set = set.tie(this, [K.CLPS, K.BTN]);
     }
@@ -312,7 +332,7 @@ class ClipHistory extends F.Mortal {
                         switch(k) {
                         case 'glyphs': return (t[k] ??= T.glyphs(text));
                         case 'search': return (t[k] ??= (x => x === text ? '' : x)(slugify(text))) || text;
-                        case 'shrink': return (t[k] ??= (x => x === text ? '' : `${x}...`)(text.slice(0, ClipHistory.WIDTH).replace(/\n|\r/g, '\u{21b5}'))) || text;
+                        case 'shrink': return (t[k] ??= (x => x === text ? '' : x)(ClipHistory.shrink(text))) || text;
                         default: return Reflect.get(t, k, r);
                         }
                     },
