@@ -64,9 +64,9 @@ class InputMode extends F.Mortal {
 
     $buildSources() {
         F.Source.tie(this,
-            new F.Source.Handler(this, 'destroy', () => this.$set.set(K.IPMS, Object.fromEntries(this.mode)),
-                global.display, 'notify::focus-window', () => this.toggle(), GObject.ConnectFlags.AFTER,
-                Main.overview, 'hidden', () => this.setDummy(), 'shown', () => this.setDummy('$overview')),
+            new F.Source.Handler(this, 'destroy', () => this.save(), global, 'shutdown', () => this.save(), // HACK: workaround for https://gitlab.gnome.org/GNOME/gnome-shell/-/work_items/2621
+                global.display, 'notify::focus-window', GObject.ConnectFlags.AFTER, () => this.toggle(),
+                Main.overview, 'hidden', 'shown', x => this.setDummy(x._shown && '$overview')),
             new F.Source.Injector([ModalDialog.ModalDialog.prototype, {
                 open: (a, f, xs) => { this.setDummy('$modal-dialog'); return f.apply(a, xs); },
                 close: (a, f, xs) => { this.setDummy(Main.lookingGlass?.isOpen ? '$looking-glass' : ''); return f.apply(a, xs); },
@@ -74,6 +74,10 @@ class InputMode extends F.Mortal {
                 open: (a, f, xs) => { this.setDummy('$looking-glass'); return f.apply(a, xs); },
                 close: (a, f, xs) => { this.setDummy(); return f.apply(a, xs); },
             }], true));
+    }
+
+    save() {
+        this.$set.set(K.IPMS, Object.fromEntries(this.mode));
     }
 
     *enumerate(props) {
@@ -311,9 +315,8 @@ class ClipHistory extends F.Mortal {
                 ['cursor-down', () => this.navigate(1)],
                 ['next-page', () => this.navigate(this[K.CLPS])],
                 ['previous-page', () => this.navigate(-this[K.CLPS])],
-                ['candidate-clicked', (_a, x) => this.commit(this.addr + x)],
-            ])[$$].add_action([new Clutter.KeyController()[$].connect('key-press', (...xs) => this.$onKeyPress(...xs)),
-                new Clutter.ClickGesture({recognizeOnPress: true})[$].connect('recognize', () => this.$src.box.dispel())])),
+                ['candidate-clicked', (_a, x) => this[$].commit(this.addr + x).$src.box.dispel()],
+            ])[$].add_action(new Clutter.KeyController()[$].connect('key-press', (...xs) => this.$onKeyPress(...xs)))),
             put = new F.Source.Timer(x => [() => kbd.commit(x, this.focused), 30]),
             key = new F.Source.Keys(this.$set.hub, K.CKYS, () => this.summon(), true),
             csr = new Clutter.Actor({opacity: 0, x: 1, y: 1})[$_](x => Main.uiGroup.add_child(x)), // HACK: workaround for the cursor jumping
