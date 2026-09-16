@@ -315,8 +315,9 @@ class ClipHistory extends F.Mortal {
                 ['cursor-down', () => this.navigate(1)],
                 ['next-page', () => this.navigate(this[K.CLPS])],
                 ['previous-page', () => this.navigate(-this[K.CLPS])],
-                ['candidate-clicked', (_a, x) => this[$].commit(this.addr + x).$src.box.dispel()],
-            ])[$].add_action(new Clutter.KeyController()[$].connect('key-press', (...xs) => this.$onKeyPress(...xs)))),
+                ['candidate-clicked', (_a, x) => this.commit(this.addr + x)],
+            ])[$$].add_action([new Clutter.ClickGesture()[$].connect('recognize', () => this.$src.box.dispel()),
+                new Clutter.KeyController()[$].connect('key-press', (...xs) => this.$onKeyPress(...xs))])),
             put = new F.Source.Timer(x => [() => kbd.commit(x, this.focused), 30]),
             key = new F.Source.Keys(this.$set.hub, K.CKYS, () => this.summon(), true),
             csr = new Clutter.Actor({opacity: 0, x: 1, y: 1})[$_](x => Main.uiGroup.add_child(x)), // HACK: workaround for the cursor jumping
