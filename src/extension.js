@@ -166,7 +166,7 @@ class FgAttribute extends F.Mortal {
         if(!attrs) return;
         let mark = '';
         let utf8 = Iterator.from(ibusText.get_text()); // String.slice - UTF-16 & IBus.Text - g_utf8_strlen, so iter codepoints here
-        for(let cursor = 0, i = 0, attr; (attr = attrs.get(i)); i++) {
+        for(let cursor = 0, i = 0, attr; attr = attrs.get(i); i++) {
             let start = attr.get_start_index();
             if(attr.get_attr_type() !== IBus.AttrType.FOREGROUND || start < cursor) continue;
             let end = attr.get_end_index(),

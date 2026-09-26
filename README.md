@@ -2,11 +2,13 @@
 SPDX-FileCopyrightText: tuberry
 SPDX-License-Identifier: CC-BY-SA-4.0
 -->
+
 # ibus-tweaker
 
 GNOME Shell extension to tweak IBus font, input mode, clipboard history, etc.
-> 狙公赋芧曰朝三而暮四。众狙皆怒。曰然则朝四而暮三。众狙皆悦。 —— *《庄子·齐物论》*\
-[![license]](/LICENSE.md)
+
+> 狙公赋芧曰朝三而暮四。众狙皆怒。曰然则朝四而暮三。众狙皆悦。 —— _《庄子·齐物论》_\
+> [![license]](/LICENSE.md)
 
 ## Installation
 
@@ -17,7 +19,7 @@ The latest and supported version should only work on the [current stable version
 ```bash
 git clone https://github.com/tuberry/ibus-tweaker.git && cd ibus-tweaker
 just install || (meson setup build && meson compile -C build && meson install -C build)
-# meson setup build -Dtarget=system && meson install -C build # system-wide
+# meson setup build -Dtarget=system && meson compile -C build && meson install -C build # system-wide
 ```
 
 For older versions, it's recommended to install via:
@@ -35,9 +37,9 @@ It's quite the same as installing from:
 
 ## Contributions
 
-Feel free to open an issue in the repo for any questions or ideas, **particularly before making significant changes or introducing new features**.
+Feel free to open issues/discussions in the repo for any questions or ideas, **particularly before making significant changes or introducing new features**.
 
-Also, *just* so you know:
+Also, _just_ so you know:
 
 ```bash
 just --list
@@ -46,8 +48,8 @@ just --list
 
 ## Acknowledgements
 
-* [anyascii](https://github.com/anyascii/anyascii/): Unicode to ASCII transliteration [table.tsv](/res/data/anyascii.tsv)
-* [ibus-font-setting](https://extensions.gnome.org/extension/1121/ibus-font-setting/): font setting
+- [anyascii](https://github.com/anyascii/anyascii/): Unicode to ASCII transliteration [table.tsv](/res/data/anyascii.tsv)
+- [ibus-font-setting](https://extensions.gnome.org/extension/1121/ibus-font-setting/): font setting
 
-[EGO]:https://extensions.gnome.org/extension/2820/ibus-tweaker/
-[license]:https://img.shields.io/badge/license-GPLv3+-green.svg
+[EGO]: https://extensions.gnome.org/extension/2820/ibus-tweaker/
+[license]: https://img.shields.io/badge/license-GPLv3+-green.svg
