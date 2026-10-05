@@ -66,13 +66,13 @@ class InputMode extends F.Mortal {
         F.Source.tie(this,
             new F.Source.Handler(this, 'destroy', () => this.save(), global, 'shutdown', () => this.save(), // HACK: workaround for https://gitlab.gnome.org/GNOME/gnome-shell/-/work_items/2621
                 global.display, 'notify::focus-window', GObject.ConnectFlags.AFTER, () => this.toggle(),
-                Main.overview, 'hidden', 'shown', x => this.setDummy(x._shown && '$overview')),
+                Main.overview, 'hidden', 'shown', x => this.toggle(x._shown && '$overview')),
             new F.Source.Injector([ModalDialog.ModalDialog.prototype, {
-                open: (a, f, xs) => { this.setDummy('$modal-dialog'); return f.apply(a, xs); },
-                close: (a, f, xs) => { this.setDummy(Main.lookingGlass?.isOpen ? '$looking-glass' : ''); return f.apply(a, xs); },
+                open: (a, f, xs) => { this.toggle('$modal-dialog'); return f.apply(a, xs); },
+                close: (a, f, xs) => { this.toggle(Main.lookingGlass?.isOpen && '$looking-glass'); return f.apply(a, xs); },
             }, LookingGlass.LookingGlass.prototype, {
-                open: (a, f, xs) => { this.setDummy('$looking-glass'); return f.apply(a, xs); },
-                close: (a, f, xs) => { this.setDummy(); return f.apply(a, xs); },
+                open: (a, f, xs) => { this.toggle('$looking-glass'); return f.apply(a, xs); },
+                close: (a, f, xs) => { this.toggle(); return f.apply(a, xs); },
             }], true));
     }
 
@@ -110,11 +110,7 @@ class InputMode extends F.Mortal {
         IBusManager.activateProperty(prop.key, prop.state ? IBus.PropState.UNCHECKED : IBus.PropState.CHECKED);
     }
 
-    setDummy(dummy) {
-        this.set({wmClass: dummy}).toggle();
-    }
-
-    toggle() {
+    toggle(dummy) {
         let {id, properties} = InputManager.currentSource,
             mode = this.seek(properties) ?? '',
             ref = this.wr.deref(),
@@ -124,7 +120,7 @@ class InputMode extends F.Mortal {
             this.wm.set(ref, value);
             this.mode.set(win, value);
         }
-        ref = this.wmClass ? this : global.display.focusWindow;
+        ref = (this.wmClass = dummy) ? this : global.display.focusWindow;
         this.wr = new WeakRef(ref || this);
         if(!(win = ref?.wmClass)) return;
         if(!this.wm.has(ref)) {
