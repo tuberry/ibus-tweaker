@@ -46,8 +46,8 @@ const PopupStyleClass = {
     _auxText: {styleClass: ''},
 }[$_](x => syncStyleClass(x, IBusPopup, T.id, x));
 
+const slugify = (txt, map) => [...txt].map(x => (y => y ? String.fromCodePoint(y) : x)(map[x.codePointAt(0)])).join('');
 const charmap = () => T.fopen('resource:///org/gnome/shell/extensions/ibus-tweaker/alpha.txt').load_bytes(null)[0].get_data();
-const slugify = (txt, map = charmap()) => [...txt].map(x => (y => y ? String.fromCodePoint(y) : x)(map[x.codePointAt(0)])).join('');
 
 function syncStyleClass(aim, src, func = T.id, tpl = PopupStyleClass) {
     return T.Y(f => (a, b, c) => Object.keys(c).forEach(k => typeof c[k] === 'object'
@@ -331,7 +331,7 @@ class ClipHistory extends F.Mortal {
                     get(t, k, r) {
                         switch(k) {
                         case 'glyphs': return (t[k] ??= T.glyphs(text));
-                        case 'search': return (t[k] ??= (x => x === text ? '' : x)(slugify(text))) || text;
+                        case 'search': return (t[k] ??= (x => x === text ? '' : x)(slugify(text, charmap()))) || text;
                         case 'shrink': return (t[k] ??= (x => x === text ? '' : x)(ClipHistory.shrink(text))) || text;
                         default: return Reflect.get(t, k, r);
                         }
@@ -442,6 +442,8 @@ class ClipHistory extends F.Mortal {
 }
 
 class SlugSearch extends F.Mortal {
+    static words = (xs, m) => xs.flatMap(x => x && /[^\p{ASCII}]/u.test(x) ? [slugify(x, m)] : []);
+
     $buildSources() {
         F.Source.tie(this, new F.Source.Handler(this, Main.overview._overview._controls._appDisplay, 'view-loaded', () => this.$update()),
             new F.Source.Injector([AppDisplay.AppSearchProvider.prototype, {getInitialResultSet: (...xs) => this.search(...xs)}], true));
@@ -450,17 +452,16 @@ class SlugSearch extends F.Mortal {
     $buildWidgets(host) {
         let map = charmap();
         this.$update(map);
-        this.acts = [...host._systemActions._actions].flatMap(([k, {available, keywords}]) =>
-            available ? [[k, keywords.flatMap(w => /[^\p{ASCII}]/u.test(w) ? [slugify(w, map)] : [])]] : []);
+        this.acts = Array.from(host._systemActions._actions, ([k, {available: a, keywords: ks}]) => a ? [[k, SlugSearch.words(ks, map)]] : []).flat();
     }
 
     $update(map = charmap()) {
-        let slug = x => x && /[^\p{ASCII}]/u.test(x) ? slugify(x, map) : '';
-        this.apps = F.apps().reduce((p, app) => {
-            let info = app.get_app_info();
-            let names = ['Name', 'GenericName', 'X-GNOME-FullName'].map(x => slug(info.get_locale_string(x)))[$]
-                .push(info.get_locale_string('Keywords')?.split(';').map(slug).filter(T.id).join(';') ?? '');
-            if(names.some(T.id)) names[0] ||= info.get_string('Name').toLowerCase(), p.push([info.get_id(), names]);
+        let split = new Intl.Segmenter(undefined, {granularity: 'word'}); // HACK: workaround for false negative isWordLike in CJK, https://bugzilla.mozilla.org/show_bug.cgi?id=1891736
+        let token = x => Array.from(split.segment(x), ({isWordLike: w, segment: s}) => w || /[\p{L}\p{N}_]/u.test(s) ? [slugify(s, map)] : []).flat();
+        this.apps = F.apps().reduce((p, {appInfo: info}) => {
+            let name = ['Name', 'GenericName', 'X-GNOME-FullName'].map(x => token(info.get_locale_string(x) ?? ''))[$]
+                .push(SlugSearch.words(info.get_locale_string('Keywords')?.split(';') ?? [], map));
+            if(name.some(x => x.length)) name[0].length || (name[0][0] = info.get_string('Name').toLowerCase()), p.push([info.get_id(), name]);
             return p;
         }, []);
     }
@@ -469,7 +470,18 @@ class SlugSearch extends F.Mortal {
         let ret = await func.apply(host, args);
         if(!this.acts) this.$buildWidgets(host);
         let neo = this.match([this.apps, this.acts], args[0]);
-        return neo.length ? ret.length ? [...new Set([...ret, ...neo])] : neo : ret;
+        return neo.length ? ret.length ? [...new Set([...neo, ...ret])] : neo : ret;
+    }
+
+    index(term, list) {
+        for(let n = list.length, i = 0; i < n; i++) {
+            for(let rest = term, j = i; j < n; j++) {
+                let word = list[j];
+                let k = word.indexOf(rest);
+                if(j === i ? k >= 0 : k === 0) return i + k;
+                if(rest.startsWith(word)) { rest = rest.slice(word.length); continue; } else { break; }
+            }
+        }
     }
 
     match(items, terms) {
@@ -477,7 +489,7 @@ class SlugSearch extends F.Mortal {
         let i, j, k, usage = Shell.AppUsage.get_default();
         return items.flatMap(xs => xs.reduce((p, [id, ws]) => {
             i = Infinity;
-            if(terms.every(t => ws.findIndex(w => (k = w.indexOf(t)) >= 0)[$_](
+            if(terms.every(t => ws.findIndex(w => (k = this.index(t, w)) >= 0)[$_](
                 x => { if(x < i) i = x, j = k; }) >= 0)) (p[i] ??= []).push([id, j]);
             return p;
         }, []).reduce((p, x) => (x && x.sort(([a, m], [b, n]) => usage.compare(a, b) || m - n).forEach(([y]) => p.push(y)), p), []));
