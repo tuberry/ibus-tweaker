@@ -8,19 +8,16 @@ configure_file(
   install_dir: target_dir,
 )
 
-_alpha = 'alpha.txt' # NOTE: -5kb if https://gitlab.gnome.org/GNOME/glib/-/issues/2850
-_gres = {'path': me['path'], 'alpha': _alpha}
+_gres = {'path': me['path'], 'alpha': 'alpha.txt'}
 
-_deps = [custom_target(
-  input: ['../../cli/gen-charmap.js', 'anyascii.tsv'],
-  output: _alpha,
+_deps = [] + custom_target(
+  output: _gres['alpha'],
   command: [
-    find_program('gjs'),
-    '-m',
-    '@INPUT@',
-    '@OUTDIR@' / _alpha,
+    subproject('ulaa').get_variable('gen'),
+    '@OUTDIR@' / _gres['alpha'] # NOTE: -5kb if https://gitlab.gnome.org/GNOME/glib/-/issues/2850
   ],
-)]
+  console: true,
+)
 
 foreach x: ['extension']
   gnome.compile_resources(

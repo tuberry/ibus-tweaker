@@ -48,7 +48,6 @@ just --list
 
 ## Acknowledgements
 
-- [anyascii](https://github.com/anyascii/anyascii/): Unicode to ASCII transliteration [table.tsv](/res/data/anyascii.tsv)
 - [ibus-font-setting](https://extensions.gnome.org/extension/1121/ibus-font-setting/): font setting
 
 [EGO]: https://extensions.gnome.org/extension/2820/ibus-tweaker/

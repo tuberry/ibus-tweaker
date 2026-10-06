@@ -1,4 +1,5 @@
 .env
+.cache
 po/*.pot
 
 node_modules
