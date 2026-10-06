@@ -3,6 +3,7 @@
 
 #include <unicode/translit.h>
 
+#include <algorithm>
 #include <fstream>
 #include <vector>
 
@@ -24,38 +25,36 @@ int main(int argc, char **argv) {
   if (U_FAILURE(status))
     return 2;
 
-  vector<char> table(UCHAR_MAX_VALUE + 1);
+  vector<char> tb(UCHAR_MAX_VALUE + 1);
 
   UnicodeString us;
   for (UChar32 cp = 0; cp <= UCHAR_MAX_VALUE; ++cp) {
+    if (cp % 0x10000 == 0)
+      fprintf(stderr, "\rscanning %2zu%%: %d/%zu", 100 * cp / tb.size(), cp,
+              tb.size());
+
     char ch = 0;
 
     if (!U_IS_SURROGATE(cp)) {
       us.setTo(cp);
       tr->transliterate(us);
 
-      for (auto i = 0; i < us.length(); ++i) {
-        auto c = us[i];
-        if (c < 128 && u_isalpha(c)) {
-          ch = u_tolower(c);
-          break;
-        }
-      }
+      if (auto it = find_if(us.begin(), us.end(),
+                            [](auto c) { return c < 128 && u_isalpha(c); });
+          it != us.end())
+        ch = u_tolower(*it);
     }
 
-    table[cp] = ch;
-
-    if (cp % 0x10000 == 0)
-      fprintf(stderr, "\rscanning %2zu%%: %d/%zu", 100 * cp / table.size(), cp,
-              table.size());
+    tb[cp] = ch;
   }
 
   for (auto [cp, ch] : erratum)
-    table[cp] = ch;
+    tb[cp] = ch;
 
-  for (UChar32 cp = 'A'; cp <= 'Z'; ++cp)
-    if (table[cp] != u_tolower(cp))
-      return 3;
+  // if (any_of(tb.begin() + 'A', tb.begin() + 'Z' + 1,
+  //            [i = 0](auto c) mutable { return c - 'a' - i++; }))
+  //   return 3;
 
-  out.write(table.data(), table.size());
+  out.write(tb.data(),
+            find_if(tb.rbegin(), tb.rend(), identity{}).base() - tb.begin());
 }
