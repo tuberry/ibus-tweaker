@@ -5,8 +5,7 @@ project(
   'ulaa', 'cpp',
   version: '1.0',
   default_options: [
-    'cpp_std=c++20',
-    'buildtype=release'
+    'buildtype=release',
   ],
 )
 
@@ -16,5 +15,8 @@ gen = executable(
   dependencies: [
     dependency('icu-uc'),
     dependency('icu-i18n'),
+  ],
+  override_options : [
+    'cpp_std=c++23',
   ],
 )

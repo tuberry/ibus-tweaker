@@ -5,56 +5,44 @@
 
 #include <algorithm>
 #include <fstream>
+#include <print>
+#include <ranges>
 #include <vector>
 
 using namespace icu;
 using namespace std;
 
-constexpr pair<UChar32, char> erratum[] = {
-    {U'乐', 'y'}, // 音乐
+constexpr array erratum = {
+    pair<UChar32, char>{U'乐', 'y'}, // 音乐
 };
 
 int main(int argc, char **argv) {
   ofstream out(argv[1], ios::binary);
-  if (!out)
-    return 1;
+  out.exceptions(ios::failbit | ios::badbit);
 
   auto status = U_ZERO_ERROR;
-  auto tr = LocalPointer<Transliterator>(Transliterator::createInstance(
-      "Any-Latin; Latin-ASCII", UTRANS_FORWARD, status));
+  unique_ptr<Transliterator> tl(Transliterator::createInstance(
+      "Any-Latin; Latin-ASCII; [^a-zA-Z] Remove", UTRANS_FORWARD, status));
   if (U_FAILURE(status))
-    return 2;
+    return 1;
 
   vector<char> tb(UCHAR_MAX_VALUE + 1);
 
+  ranges::for_each(erratum, [&](auto &x) { tb[x.first] = x.second; });
+
   UnicodeString us;
-  for (UChar32 cp = 0; cp <= UCHAR_MAX_VALUE; ++cp) {
-    if (cp % 0x10000 == 0)
-      fprintf(stderr, "\rscanning %2zu%%: %d/%zu", 100 * cp / tb.size(), cp,
-              tb.size());
+  auto idx = ranges::fold_left(tb | views::enumerate, 0, [&](auto p, auto &&x) {
+    auto &&[i, c] = x;
 
-    char ch = 0;
+    if (i % 10000 == 0)
+      print(stderr, "\rulaa > Scanning: {:2}% ", 100 * i / tb.size());
 
-    if (!U_IS_SURROGATE(cp)) {
-      us.setTo(cp);
-      tr->transliterate(us);
+    tl->transliterate(us.setTo(c ? c : static_cast<UChar32>(i)));
+    return us.isEmpty() ? p : (c = u_tolower(us[0]), i);
+  });
+  tb.resize(idx + 1);
 
-      if (auto it = find_if(us.begin(), us.end(),
-                            [](auto c) { return c < 128 && u_isalpha(c); });
-          it != us.end())
-        ch = u_tolower(*it);
-    }
+  out.write(tb.data(), tb.size());
 
-    tb[cp] = ch;
-  }
-
-  for (auto [cp, ch] : erratum)
-    tb[cp] = ch;
-
-  // if (any_of(tb.begin() + 'A', tb.begin() + 'Z' + 1,
-  //            [i = 0](auto c) mutable { return c - 'a' - i++; }))
-  //   return 3;
-
-  out.write(tb.data(),
-            find_if(tb.rbegin(), tb.rend(), identity{}).base() - tb.begin());
+  println(stderr, "\rulaa > Scanned: {}", ranges::count_if(tb, identity{}));
 }
